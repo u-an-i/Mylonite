@@ -12,6 +12,8 @@ mainCore::mainCore()
 
     view = new Qt3DWidget(mainWindow);
 
+    mainWindow->getCentralWidget()->setParent(view);
+
     mainWindow->setCentralWidget(view);
 
 

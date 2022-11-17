@@ -13,6 +13,12 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+QWidget* MainWindow::getCentralWidget()
+{
+    return ui->centralwidget;
+}
+
+
 QPushButton* MainWindow::getPushButtonForAPIKey()
 {
     return ui->pushButton_APIKey;

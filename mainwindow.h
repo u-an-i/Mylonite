@@ -16,6 +16,7 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    QWidget* getCentralWidget();
     QPushButton* getPushButtonForAPIKey();
 
 private:
