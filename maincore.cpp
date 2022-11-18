@@ -1,6 +1,7 @@
 #include "maincore.h"
 #include "mainwindow.h"
 #include "include/mm.hpp"
+#include "include/qt3dwidget.h"
 
 #include <Qt3DRender>
 
@@ -11,7 +12,7 @@ mainCore::mainCore()
 
     mainWindow->show();
 
-    view = new Qt3DWidget(mainWindow);
+    Qt3DWidget* view = (new Derived<Qt3DWidget>())->get();
 
     mainWindow->getCentralWidget()->setParent(view);
 
@@ -21,16 +22,16 @@ mainCore::mainCore()
     scene = createScene();
 
     // Camera
-    Qt3DRender::QCamera* camera = view->camera();
+    camera = view->camera();
     camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
-    camera->setPosition(QVector3D(0, 10.0f, 0.0f));
+    camera->setPosition(cameraFarRestPosition);
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
 
-    // For camera controls
-    camController = new Qt3DExtras::QOrbitCameraController(scene);
-    camController->setLinearSpeed( 50.0f );
-    camController->setLookSpeed( 180.0f );
-    camController->setCamera(camera);
+    Derived<Qt3DInput::QMouseHandler>* dmh = new Derived<Qt3DInput::QMouseHandler>();
+    Qt3DInput::QMouseHandler* mh = dmh->get();
+    mh->setParent(scene);
+    mh->setSourceDevice((new Derived<Qt3DInput::QMouseDevice>)->get());
+    connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
 
     view->setRootEntity(scene);
 
@@ -40,11 +41,9 @@ mainCore::mainCore()
 
 mainCore::~mainCore()
 {
-    delete camController;
-    delete scene;
+    scene !=  nullptr ? delete scene : NOP_FUNCTION;
     MemRegistry::obliviate();
-    delete view;
-    delete mainWindow;
+    mainWindow !=  nullptr ? delete mainWindow : NOP_FUNCTION;
 }
 
 
@@ -52,11 +51,22 @@ Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
 
+    Derived<Qt3DRender::QLayer>* dl = new Derived<Qt3DRender::QLayer>();
+    Qt3DRender::QLayer* l = dl->get();
+    l->setRecursive(true);
+    rootEntity->addComponent(l);
+    Derived<Qt3DRender::QScreenRayCaster>* dsrc = new Derived<Qt3DRender::QScreenRayCaster>();
+    src = dsrc->get();
+    src->addLayer(l);
+    rootEntity->addComponent(src);
+
+    connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
+
     Qt3DCore::QEntity* quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
+    cacheQuad.insert("0_0_0", quadEntity);
     quadEntity->setParent(rootEntity);
 
     Qt3DRender::QMaterial* material = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
-    material->setParent(rootEntity);
     Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
     ti->setSource(QUrl("file:cache/0_0_0.jpg"));
     Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();
@@ -83,4 +93,37 @@ Qt3DCore::QEntity* mainCore::createScene()
 void mainCore::setAPIKey()
 {
     qDebug() << "API key: " << mainWindow->getLineEditForAPIKey()->text();
+}
+
+
+void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
+{
+    qDebug() << "triggered";
+    if(hits.size() > 0)
+    {
+        qDebug() << "hit";
+        QVector3D posCam = camera->position();
+        QVector3D posNew = posCam + (hits[0].worldIntersection() - posCam).normalized() * wheelDir / 360.0f;
+        posNew = posNew.y() < camera->nearPlane() ? QVector3D(posNew.x(), camera->nearPlane(), posNew.z()) : posNew;
+        camera->setPosition(posNew);
+    }
+}
+
+
+void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
+{
+    float wheelDir = wheel->angleDelta().y();
+    if(wheelDir > 0)
+    {
+        this->wheelDir = wheelDir;
+        src->trigger(QPoint(wheel->x(), wheel->y()));
+    }
+    else
+    {
+        QVector3D posCam = camera->position();
+        QVector3D posNew = posCam + (posCam - cameraFarRestPosition).normalized() * wheelDir / 360.0f;
+        posNew = posNew.y() > cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
+        camera->setPosition(posNew);
+    }
+    qDebug() << "mouse: " << wheelDir << " " << wheel->x()<< " " << wheel->y();
 }

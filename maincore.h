@@ -2,7 +2,6 @@
 #define MAINCORE_H
 
 #include "mainwindow.h"
-#include "include/qt3dwidget.h"
 
 #include <QObject>
 #include <Qt3DExtras>
@@ -21,17 +20,22 @@ public:
 
 public slots:
     void setAPIKey();
+    void rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits);
+    void wheeled(Qt3DInput::QWheelEvent* wheel);
 
 
 private:
-    Qt3DWidget* view;
-    MainWindow* mainWindow;
-    Qt3DCore::QEntity* scene;
-    Qt3DExtras::QOrbitCameraController* camController;
+    MainWindow* mainWindow = nullptr;
+    Qt3DCore::QEntity* scene = nullptr;
+    Qt3DRender::QScreenRayCaster* src;
+    Qt3DRender::QCamera* camera;
+    const QVector3D cameraFarRestPosition = QVector3D(.0f, 10.0f, .0f);
+    int wheelDir;
 
     Qt3DCore::QEntity* createScene();
 
-    QHash<QString, bool> cache[20];     // there shall be 2 caches: map image and quad caches, bool is a placeholder for likely further hashes of id to actual Qt data structure representing image or quad
+    QHash<QString, Qt3DCore::QEntity*> cacheQuad;      // later: image (disk) cache
+    int zoomLevelCurrent = 0;
 };
 
 #endif // MAINCORE_H
