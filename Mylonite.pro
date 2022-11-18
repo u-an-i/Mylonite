@@ -15,6 +15,7 @@ SOURCES += \
     networkrequest.cpp
 
 HEADERS += \
+    include/mm.hpp \
     include/qt3dwidget.h \
     maincore.h \
     mainwindow.h \
@@ -29,3 +30,18 @@ LIBS += "$${PWD}/lib/libqt3dwidget.a"
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+DISTFILES += \
+    cache/0_0_0.jpg
+
+
+CONFIG(debug, debug|release) {
+    SUBFOLDER = debug
+} else {
+    SUBFOLDER = release
+}
+copydata.commands = $(COPY_DIR) \"$${PWD}/cache\" \"$${OUT_PWD}/cache\"
+first.depends = $(first) copydata
+export(first.depends)
+export(copydata.commands)
+QMAKE_EXTRA_TARGETS += first copydata

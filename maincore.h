@@ -26,6 +26,8 @@ public slots:
 private:
     Qt3DWidget* view;
     MainWindow* mainWindow;
+    Qt3DCore::QEntity* scene;
+    Qt3DExtras::QOrbitCameraController* camController;
 
     Qt3DCore::QEntity* createScene();
 

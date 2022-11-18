@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QPushButton>
+#include <QLineEdit>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,6 +19,7 @@ public:
 
     QWidget* getCentralWidget();
     QPushButton* getPushButtonForAPIKey();
+    QLineEdit* getLineEditForAPIKey();
 
 private:
     Ui::MainWindow *ui;

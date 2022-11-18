@@ -23,3 +23,9 @@ QPushButton* MainWindow::getPushButtonForAPIKey()
 {
     return ui->pushButton_APIKey;
 }
+
+
+QLineEdit* MainWindow::getLineEditForAPIKey()
+{
+    return ui->lineEdit_APIKey;
+}
