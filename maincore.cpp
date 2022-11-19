@@ -51,6 +51,9 @@ Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
 
+    /*Qt3DRender::QPickingSettings* ps = (new Derived<Qt3DRender::QPickingSettings>())->get();
+    ps->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
+    ps->setParent(rootEntity);*/
     Qt3DRender::QLayer* l = (new Derived<Qt3DRender::QLayer>())->get();
     l->setRecursive(true);
     rootEntity->addComponent(l);
@@ -101,11 +104,11 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     {
         qDebug() << "hit";
         QVector3D posCam = camera->position();
-        QVector3D posHit = hits[0].worldIntersection();
-        QVector3D posNew = posCam + (posHit - posCam).normalized() * wheelDir / 120.0f;
+        QVector3D posNew = posCam + (hits[0].worldIntersection() - posCam).normalized() * wheelDir / 120.0f;
         posNew = posNew.y() < camera->nearPlane() ? QVector3D(posNew.x(), camera->nearPlane(), posNew.z()) : posNew;
         camera->setPosition(posNew);
-        camera->setViewCenter(posHit);
+        posNew.setY(.0f);
+        camera->setViewCenter(posNew);
     }
 }
 
@@ -124,6 +127,8 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
         QVector3D posNew = posCam + (posCam - cameraFarRestPosition).normalized() * wheelDir / 120.0f;
         posNew = posNew.y() > cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
         camera->setPosition(posNew);
+        posNew.setY(.0f);
+        camera->setViewCenter(posNew);
     }
     qDebug() << "mouse: " << wheelDir << " " << wheel->x()<< " " << wheel->y();
 }
