@@ -25,10 +25,10 @@ mainCore::mainCore()
     camera = view->camera();
     camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
     camera->setPosition(cameraFarRestPosition);
+    camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
 
-    Derived<Qt3DInput::QMouseHandler>* dmh = new Derived<Qt3DInput::QMouseHandler>();
-    Qt3DInput::QMouseHandler* mh = dmh->get();
+    Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setParent(scene);
     mh->setSourceDevice((new Derived<Qt3DInput::QMouseDevice>)->get());
     connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
@@ -51,12 +51,10 @@ Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
 
-    Derived<Qt3DRender::QLayer>* dl = new Derived<Qt3DRender::QLayer>();
-    Qt3DRender::QLayer* l = dl->get();
+    Qt3DRender::QLayer* l = (new Derived<Qt3DRender::QLayer>())->get();
     l->setRecursive(true);
     rootEntity->addComponent(l);
-    Derived<Qt3DRender::QScreenRayCaster>* dsrc = new Derived<Qt3DRender::QScreenRayCaster>();
-    src = dsrc->get();
+    src = (new Derived<Qt3DRender::QScreenRayCaster>())->get();
     src->addLayer(l);
     rootEntity->addComponent(src);
 
@@ -75,8 +73,8 @@ Qt3DCore::QEntity* mainCore::createScene()
 
     Qt3DExtras::QPlaneMesh* quadMesh = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
     quadMesh->setMeshResolution(QSize(2, 2));
-    quadMesh->setWidth(1.0f);
-    quadMesh->setHeight(1.0f);
+    quadMesh->setWidth(100.0f);
+    quadMesh->setHeight(100.0f);
 
     Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
     quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
@@ -103,9 +101,11 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     {
         qDebug() << "hit";
         QVector3D posCam = camera->position();
-        QVector3D posNew = posCam + (hits[0].worldIntersection() - posCam).normalized() * wheelDir / 360.0f;
+        QVector3D posHit = hits[0].worldIntersection();
+        QVector3D posNew = posCam + (posHit - posCam).normalized() * wheelDir / 120.0f;
         posNew = posNew.y() < camera->nearPlane() ? QVector3D(posNew.x(), camera->nearPlane(), posNew.z()) : posNew;
         camera->setPosition(posNew);
+        camera->setViewCenter(posHit);
     }
 }
 
@@ -121,7 +121,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
     else
     {
         QVector3D posCam = camera->position();
-        QVector3D posNew = posCam + (posCam - cameraFarRestPosition).normalized() * wheelDir / 360.0f;
+        QVector3D posNew = posCam + (posCam - cameraFarRestPosition).normalized() * wheelDir / 120.0f;
         posNew = posNew.y() > cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
         camera->setPosition(posNew);
     }

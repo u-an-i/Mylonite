@@ -29,7 +29,7 @@ private:
     Qt3DCore::QEntity* scene = nullptr;
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
-    const QVector3D cameraFarRestPosition = QVector3D(.0f, 10.0f, .0f);
+    const QVector3D cameraFarRestPosition = QVector3D(.0f, 200.0f, .0f);
     int wheelDir;
 
     Qt3DCore::QEntity* createScene();
