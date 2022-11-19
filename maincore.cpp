@@ -3,7 +3,6 @@
 #include "include/mm.hpp"
 #include "include/qt3dwidget.h"
 
-#include <Qt3DRender>
 
 
 mainCore::mainCore()
@@ -52,6 +51,10 @@ mainCore::~mainCore()
 Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
+
+    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
+    rootEntity->addComponent(fa);
+    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
 
     /*Qt3DRender::QPickingSettings* ps = (new Derived<Qt3DRender::QPickingSettings>())->get();
     ps->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
@@ -105,18 +108,60 @@ void mainCore::resized()
 }
 
 
+void mainCore::frameUpdate(float dt)
+{
+    if(zoom)
+    {
+        /*
+         *
+         * v = A * (t/T - 1)^2;
+         * S[v]dt = distance;
+         * S[v]dt = S[A * (t/T - 1)^2]dt = [A * (T/3)*(t/T - 1)^3]0..T = 0 - A * (T/3) * (-1) = A * T/3 = distance;
+         * A = (distance * 3) / T;
+         * [A * (T/3)*(t/T - 1)^3]0..t = A * (T/3)*(t/T - 1)^3 + A * T/3
+         *
+         */
+        float t = this->t->elapsed() / 1000.0f;
+        if(t > appliedZoomDuration)
+        {
+            t = appliedZoomDuration;
+            delete this->t;
+            zoom = false;
+        }
+        float base = (t/appliedZoomDuration - 1.0f);
+        QVector3D posNew = cameraStartPosition + easingCoefficient * appliedZoomDuration * (base * base * base + 1.0f) / 3.0f * cameraDirHit;
+        camera->setPosition(posNew);
+        posNew.setY(.0f);
+        camera->setViewCenter(posNew);
+    }
+}
+
+
 void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
 {
     qDebug() << "triggered";
     if(hits.size() > 0)
     {
-        qDebug() << "hit";
-        QVector3D posCam = camera->position();
-        QVector3D posNew = posCam + (hits[0].worldIntersection() - posCam).normalized() * wheelDir / 120.0f;
-        posNew = posNew.y() < camera->nearPlane() ? QVector3D(posNew.x(), camera->nearPlane(), posNew.z()) : posNew;
-        camera->setPosition(posNew);
-        posNew.setY(.0f);
-        camera->setViewCenter(posNew);
+        qDebug() << "hit at y = " << hits[0].worldIntersection().y() << " (should be 0)";
+        QVector3D posHit = hits[0].worldIntersection();
+        posHit.setY(.0f);
+        cameraStartPosition = camera->position();
+        cameraDirHit = (posHit - cameraStartPosition);
+        float distance = cameraDirHit.length();
+        cameraDirHit /= distance;
+        if(zoom) {
+            appliedZoomDuration *= .5f;
+            easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
+            t->restart();
+        }
+        else
+        {
+            appliedZoomDuration = zoomDuration;
+            easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
+            t = new QElapsedTimer();
+            t->start();
+            zoom = true;
+        }
     }
 }
 
@@ -131,12 +176,27 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
     }
     else
     {
-        QVector3D posCam = camera->position();
-        QVector3D posNew = posCam + (posCam - cameraFarRestPosition).normalized() * wheelDir / 120.0f;
-        posNew = posNew.y() > cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
-        camera->setPosition(posNew);
-        posNew.setY(.0f);
-        camera->setViewCenter(posNew);
+        cameraStartPosition = camera->position();
+        QVector3D posNew = cameraStartPosition + (cameraFarRestPosition - cameraStartPosition).normalized() * (cameraStartPosition.y() < zoomBackDistance ? zoomBackDistanceSmall : zoomBackDistance);
+        posNew = posNew.y() >= cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
+        cameraDirHit = (posNew - cameraStartPosition);
+        float distance = cameraDirHit.length();
+        if(distance > .0f) {
+            cameraDirHit /= distance;
+            if(zoom) {
+                appliedZoomDuration *= .5f;
+                easingCoefficient = distance * 3.0f / appliedZoomDuration;
+                t->restart();
+            }
+            else
+            {
+                appliedZoomDuration = zoomDuration;
+                easingCoefficient = distance * 3.0f / appliedZoomDuration;
+                t = new QElapsedTimer();
+                t->start();
+                zoom = true;
+            }
+        }
     }
     qDebug() << "mouse: " << wheelDir << " " << wheel->x() << " " << wheel->y() << " " << viewHeight-wheel->y();
 }

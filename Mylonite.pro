@@ -1,6 +1,6 @@
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets openglwidgets 3dcore 3drender 3dinput 3dextras
+greaterThan(QT_MAJOR_VERSION, 4): QT += widgets openglwidgets 3dcore 3drender 3dlogic 3dinput 3dextras
 
 CONFIG += c++17
 
