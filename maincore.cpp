@@ -150,7 +150,7 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
         float distance = cameraDirHit.length();
         cameraDirHit /= distance;
         if(zoom) {
-            appliedZoomDuration *= .5f;
+            appliedZoomDuration = t->elapsed() / 1000.0f;
             easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
             t->restart();
         }
@@ -184,7 +184,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
         if(distance > .0f) {
             cameraDirHit /= distance;
             if(zoom) {
-                appliedZoomDuration *= .5f;
+                appliedZoomDuration = t->elapsed() / 1000.0f;
                 easingCoefficient = distance * 3.0f / appliedZoomDuration;
                 t->restart();
             }
