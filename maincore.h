@@ -35,7 +35,6 @@ private:
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const QVector3D cameraFarRestPosition = QVector3D(.0f, 200.0f, .0f);
-    int wheelDir;
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     bool zoom = false;

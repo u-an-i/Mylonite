@@ -28,6 +28,7 @@ mainCore::mainCore()
     camera->setPosition(cameraFarRestPosition);
     camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
+    camera->setNearPlane(.01f);         // .0f lets QScreenRayCast hit something a center of screen
 
     Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setParent(scene);
@@ -87,6 +88,7 @@ Qt3DCore::QEntity* mainCore::createScene()
     Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
     quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
     quadTransform->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
+    quadTransform->setTranslation(QVector3D(.0f, .0f, .0f));
 
     quadEntity->addComponent(quadMesh);
     quadEntity->addComponent(quadTransform);
@@ -142,11 +144,11 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     qDebug() << "triggered";
     if(hits.size() > 0)
     {
-        qDebug() << "hit at y = " << hits[0].worldIntersection().y() << " (should be 0)";
+        qDebug() << "hit at y = " << hits[0].worldIntersection() << " (y should be 0), local: ";
         QVector3D posHit = hits[0].worldIntersection();
         posHit.setY(.0f);
         cameraStartPosition = camera->position();
-        cameraDirHit = (posHit - cameraStartPosition);
+        cameraDirHit = posHit - cameraStartPosition;
         float distance = cameraDirHit.length();
         cameraDirHit /= distance;
         if(zoom) {
@@ -168,11 +170,9 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
 
 void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
 {
-    float wheelDir = wheel->angleDelta().y();
-    if(wheelDir > 0)
+    if(wheel->angleDelta().y() > 0)
     {
-        this->wheelDir = wheelDir;
-        src->trigger(QPoint(wheel->x(), viewHeight-wheel->y()));
+        src->trigger(QPoint(wheel->x(), viewHeight - wheel->y()));
     }
     else
     {
@@ -198,5 +198,5 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
             }
         }
     }
-    qDebug() << "mouse: " << wheelDir << " " << wheel->x() << " " << wheel->y() << " " << viewHeight-wheel->y();
+    qDebug() << "mouse: " << wheel->x() << " " << wheel->y() << " ";
 }
