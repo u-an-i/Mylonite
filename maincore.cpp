@@ -12,7 +12,9 @@ mainCore::mainCore()
 
     mainWindow->show();
 
-    Qt3DWidget* view = (new Derived<Qt3DWidget>())->get();
+    view = (new Derived<Qt3DWidget>())->get();
+    viewHeight = view->height();
+    connect(view, &Qt3DWidget::resized, this, &mainCore::resized);
 
     mainWindow->getCentralWidget()->setParent(view);
 
@@ -97,6 +99,12 @@ void mainCore::setAPIKey()
 }
 
 
+void mainCore::resized()
+{
+    viewHeight = view->height();
+}
+
+
 void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
 {
     qDebug() << "triggered";
@@ -119,7 +127,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
     if(wheelDir > 0)
     {
         this->wheelDir = wheelDir;
-        src->trigger(QPoint(wheel->x(), wheel->y()));
+        src->trigger(QPoint(wheel->x(), viewHeight-wheel->y()));
     }
     else
     {
@@ -130,5 +138,5 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
         posNew.setY(.0f);
         camera->setViewCenter(posNew);
     }
-    qDebug() << "mouse: " << wheelDir << " " << wheel->x()<< " " << wheel->y();
+    qDebug() << "mouse: " << wheelDir << " " << wheel->x() << " " << wheel->y() << " " << viewHeight-wheel->y();
 }

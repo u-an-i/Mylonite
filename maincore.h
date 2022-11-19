@@ -2,6 +2,7 @@
 #define MAINCORE_H
 
 #include "mainwindow.h"
+#include "include/qt3dwidget.h"
 
 #include <QObject>
 #include <Qt3DExtras>
@@ -20,12 +21,15 @@ public:
 
 public slots:
     void setAPIKey();
+    void resized();
     void rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits);
     void wheeled(Qt3DInput::QWheelEvent* wheel);
 
 
 private:
     MainWindow* mainWindow = nullptr;
+    Qt3DWidget* view;
+    int viewHeight;
     Qt3DCore::QEntity* scene = nullptr;
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
