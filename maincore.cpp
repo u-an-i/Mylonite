@@ -192,8 +192,8 @@ void mainCore::frameUpdate(float dt)
 
                             Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
                             quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
-                            quadTransform->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
-                            quadTransform->setTranslation(QVector3D(-maxQuadSize/2 + j * sizeMax, .0f, -maxQuadSize/2 + i * sizeMax));
+                            quadTransform->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));qDebug() << QVector3D(-maxQuadSize/2 + j * quadSize, .0f, -maxQuadSize/2 + i * quadSize);
+                            quadTransform->setTranslation(QVector3D(-maxQuadSize/2 + quadSize * (.5f + j), .0f, maxQuadSize/2 - quadSize * (.5f + i)));
 
                             quadEntity->addComponent(quadMesh);
                             quadEntity->addComponent(quadTransform);
