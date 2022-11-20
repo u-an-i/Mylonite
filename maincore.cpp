@@ -19,9 +19,7 @@ mainCore::mainCore()
 
     mainWindow->setCentralWidget(view);
 
-
     view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
-
 
     scene = createScene();
 
@@ -32,6 +30,11 @@ mainCore::mainCore()
     camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
     camera->setNearPlane(.01f);         // .0f lets QScreenRayCast hit something at center of screen and not one of the created mesh
+    camera->setFarPlane(cameraFarRestPosition.y() + 1.0f);
+
+    layerFilter = (new Derived<Qt3DRender::QLayerFilter>())->get();
+    layerFilter->setParent(camera);
+    layerFilter->addLayer(layer[zoomCurrentLevel]);
 
     Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setParent(scene);
@@ -47,6 +50,7 @@ mainCore::mainCore()
 mainCore::~mainCore()
 {
     scene !=  nullptr ? delete scene : NOP_FUNCTION;
+    delete (Derived<Qt3DRender::QLayerFilter>*)layerFilter;
     MemRegistry::obliviate();
     mainWindow !=  nullptr ? delete mainWindow : NOP_FUNCTION;
 }
@@ -60,17 +64,9 @@ Qt3DCore::QEntity* mainCore::createScene()
     rootEntity->addComponent(fa);
     connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
 
-    Qt3DRender::QLayer* l = (new Derived<Qt3DRender::QLayer>())->get();
-    l->setRecursive(true);
-    rootEntity->addComponent(l);
-    src = (new Derived<Qt3DRender::QScreenRayCaster>())->get();
-    src->addLayer(l);
-    rootEntity->addComponent(src);
-
-    connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
-
     Qt3DCore::QEntity* quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
     cacheQuad.insert("0_0_0", quadEntity);
+
     quadEntity->setParent(rootEntity);
 
     Qt3DRender::QMaterial* material = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
@@ -82,8 +78,8 @@ Qt3DCore::QEntity* mainCore::createScene()
 
     Qt3DExtras::QPlaneMesh* quadMesh = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
     quadMesh->setMeshResolution(QSize(2, 2));
-    quadMesh->setWidth(100.0f);
-    quadMesh->setHeight(100.0f);
+    quadMesh->setWidth(pow(2, zoomCurrentLevel) * smallestQuadSize);
+    quadMesh->setHeight(pow(2, zoomCurrentLevel) * smallestQuadSize);
 
     Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
     quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
@@ -93,6 +89,18 @@ Qt3DCore::QEntity* mainCore::createScene()
     quadEntity->addComponent(quadMesh);
     quadEntity->addComponent(quadTransform);
     quadEntity->addComponent(material);
+
+    for(int i=0; i<20; ++i)
+    {
+        layer[i] = (new Derived<Qt3DRender::QLayer>())->get();
+    }
+    Qt3DRender::QLayer *l = layer[zoomCurrentLevel];
+    quadEntity->addComponent(l);
+    src = (new Derived<Qt3DRender::QScreenRayCaster>())->get();
+    src->addLayer(l);
+    rootEntity->addComponent(src);
+
+    connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
 
     return rootEntity;
 }
@@ -133,8 +141,66 @@ void mainCore::frameUpdate(float dt)
         float base = (t/appliedZoomDuration - 1.0f);
         QVector3D posNew = cameraStartPosition + easingCoefficient * appliedZoomDuration * (base * base * base + 1.0f) / 3.0f * cameraDirHit;
         camera->setPosition(posNew);
+        int correspondingZoomLevel = log2f(posNew.y() / (2.0f * smallestQuadSize));
         posNew.setY(.0f);
         camera->setViewCenter(posNew);
+        if(correspondingZoomLevel != zoomCurrentLevel)
+        {
+            qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
+            src->removeLayer(layer[zoomCurrentLevel]);
+            src->addLayer(layer[correspondingZoomLevel]);
+            layerFilter->removeLayer(layer[zoomCurrentLevel]);
+            layerFilter->addLayer(layer[correspondingZoomLevel]);
+            int zcl = zoomCurrentLevel;
+            zoomCurrentLevel = correspondingZoomLevel;
+            if(correspondingZoomLevel < zcl)
+            {
+                int sizeMax = pow(2, zoomLevelMax - zoomCurrentLevel);
+                float quadSize = maxQuadSize / sizeMax;
+                int indexRow = ((int)posHit.y()) / quadSize;
+                int indexCol = ((int)posHit.x()) / quadSize;
+                int indexStartRow = indexRow > 0 ? indexRow - 1 : 0;
+                int indexEndRow = indexRow < sizeMax ? indexRow + 1 : sizeMax;
+                int indexStartCol = indexCol > 0 ? indexCol - 1 : 0;
+                int indexEndCol = indexCol < sizeMax ? indexCol + 1 : sizeMax;
+                for(int i = indexStartRow; i < indexEndRow; ++i)
+                {
+                    for(int j = indexStartCol; j < indexEndCol; ++j)
+                    {
+                        QString key = QString::number(zoomCurrentLevel) + "_" + QString::number(j) + "_" + QString::number(i);
+                        Qt3DCore::QEntity* quadEntity = cacheQuad[key];
+                        if(quadEntity == nullptr) {
+                            quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
+                            cacheQuad[key] = quadEntity;
+
+                            quadEntity->setParent(scene);
+                            quadEntity->addComponent(layer[zoomCurrentLevel]);
+
+                            Qt3DRender::QMaterial* material = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
+                            Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
+                            ti->setSource(QUrl("file:cache/0_0_0.jpg"));
+                            Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();
+                            t->addTextureImage(ti);
+                            ((Qt3DExtras::QTextureMaterial*)material)->setTexture(t);
+
+                            Qt3DExtras::QPlaneMesh* quadMesh = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
+                            quadMesh->setMeshResolution(QSize(2, 2));
+                            quadMesh->setWidth(quadSize);
+                            quadMesh->setHeight(quadSize);
+
+                            Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
+                            quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
+                            quadTransform->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
+                            quadTransform->setTranslation(QVector3D(-maxQuadSize/2 + indexCol * sizeMax, .0f, -maxQuadSize/2 + indexRow * sizeMax));
+
+                            quadEntity->addComponent(quadMesh);
+                            quadEntity->addComponent(quadTransform);
+                            quadEntity->addComponent(material);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -145,8 +211,7 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     if(hits.size() > 0)
     {
         qDebug() << "hit at y = " << hits[0].worldIntersection() << " (y should be 0), local: " << hits[0].localIntersection();
-        QVector3D posHit = hits[0].worldIntersection();
-        posHit.setY(.0f);
+        posHit = hits[0].worldIntersection();
         cameraStartPosition = camera->position();
         cameraDirHit = posHit - cameraStartPosition;
         float distance = cameraDirHit.length();
