@@ -15,11 +15,11 @@ mainCore::mainCore()
     viewHeight = view->height();
     connect(view, &Qt3DWidget::resized, this, &mainCore::resized);
 
+    view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
+
     mainWindow->getCentralWidget()->setParent(view);
 
     mainWindow->setCentralWidget(view);
-
-    view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
 
 
     for(int i=0; i<20; ++i)
@@ -29,6 +29,10 @@ mainCore::mainCore()
 
 
     scene = createScene();
+
+    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
+    scene->addComponent(fa);
+    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
 
     // Camera
     camera = view->camera();
@@ -72,10 +76,6 @@ mainCore::~mainCore()
 Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
-
-    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
-    rootEntity->addComponent(fa);
-    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
 
     Qt3DCore::QEntity* quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
     cacheQuad.insert("0_0_0", quadEntity);
