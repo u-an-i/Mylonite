@@ -21,6 +21,13 @@ mainCore::mainCore()
 
     view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
 
+
+    for(int i=0; i<20; ++i)
+    {
+        layer[i] = (new Derived<Qt3DRender::QLayer>())->get();
+    }
+
+
     scene = createScene();
 
     // Camera
@@ -35,6 +42,12 @@ mainCore::mainCore()
     layerFilter = (new Derived<Qt3DRender::QLayerFilter>())->get();
     layerFilter->setParent(camera);
     layerFilter->addLayer(layer[zoomCurrentLevel]);
+
+    src = (new Derived<Qt3DRender::QScreenRayCaster>())->get();
+    src->addLayer(layer[zoomCurrentLevel]);
+    scene->addComponent(src);
+
+    connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
 
     Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setParent(scene);
@@ -68,6 +81,7 @@ Qt3DCore::QEntity* mainCore::createScene()
     cacheQuad.insert("0_0_0", quadEntity);
 
     quadEntity->setParent(rootEntity);
+    quadEntity->addComponent(layer[zoomCurrentLevel]);
 
     Qt3DRender::QMaterial* material = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
     Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
@@ -89,18 +103,6 @@ Qt3DCore::QEntity* mainCore::createScene()
     quadEntity->addComponent(quadMesh);
     quadEntity->addComponent(quadTransform);
     quadEntity->addComponent(material);
-
-    for(int i=0; i<20; ++i)
-    {
-        layer[i] = (new Derived<Qt3DRender::QLayer>())->get();
-    }
-    Qt3DRender::QLayer *l = layer[zoomCurrentLevel];
-    quadEntity->addComponent(l);
-    src = (new Derived<Qt3DRender::QScreenRayCaster>())->get();
-    src->addLayer(l);
-    rootEntity->addComponent(src);
-
-    connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
 
     return rootEntity;
 }
@@ -160,9 +162,9 @@ void mainCore::frameUpdate(float dt)
                 int indexRow = ((int)posHit.y()) / quadSize;
                 int indexCol = ((int)posHit.x()) / quadSize;
                 int indexStartRow = indexRow > 0 ? indexRow - 1 : 0;
-                int indexEndRow = indexRow < sizeMax ? indexRow + 1 : sizeMax;
+                int indexEndRow = indexRow < sizeMax - 1 ? indexRow + 2 : sizeMax;
                 int indexStartCol = indexCol > 0 ? indexCol - 1 : 0;
-                int indexEndCol = indexCol < sizeMax ? indexCol + 1 : sizeMax;
+                int indexEndCol = indexCol < sizeMax - 1 ? indexCol + 2 : sizeMax;qDebug() << sizeMax << " " << indexRow << " " << indexCol;
                 for(int i = indexStartRow; i < indexEndRow; ++i)
                 {
                     for(int j = indexStartCol; j < indexEndCol; ++j)
@@ -191,7 +193,7 @@ void mainCore::frameUpdate(float dt)
                             Qt3DCore::QTransform* quadTransform = (new Derived<Qt3DCore::QTransform>())->get();
                             quadTransform->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
                             quadTransform->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
-                            quadTransform->setTranslation(QVector3D(-maxQuadSize/2 + indexCol * sizeMax, .0f, -maxQuadSize/2 + indexRow * sizeMax));
+                            quadTransform->setTranslation(QVector3D(-maxQuadSize/2 + j * sizeMax, .0f, -maxQuadSize/2 + i * sizeMax));
 
                             quadEntity->addComponent(quadMesh);
                             quadEntity->addComponent(quadTransform);
