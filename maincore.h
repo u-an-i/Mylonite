@@ -38,10 +38,10 @@ private:
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     bool zoom = false;
-    const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that direction's reduction per zoom
+    const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that distance's reduction per zoom action
     const float zoomDuration = 1.25f;                   // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
-    const float zoomBackDistance = 23.5f;
-    const float zoomBackDistanceSmall = 8.0f;
+    const float zoomBackDistance = 23.5f;               // fixed distance to zoom back
+    const float zoomBackDistanceSmall = 8.0f;           // fixed distance to zoom back when close map
     float easingCoefficient;
     float appliedZoomDuration;
     QElapsedTimer* t;

@@ -20,6 +20,9 @@ mainCore::mainCore()
     mainWindow->setCentralWidget(view);
 
 
+    view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
+
+
     scene = createScene();
 
     // Camera
@@ -28,7 +31,7 @@ mainCore::mainCore()
     camera->setPosition(cameraFarRestPosition);
     camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
-    camera->setNearPlane(.01f);         // .0f lets QScreenRayCast hit something a center of screen
+    camera->setNearPlane(.01f);         // .0f lets QScreenRayCast hit something at center of screen and not one of the created mesh
 
     Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setParent(scene);
@@ -57,9 +60,6 @@ Qt3DCore::QEntity* mainCore::createScene()
     rootEntity->addComponent(fa);
     connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
 
-    /*Qt3DRender::QPickingSettings* ps = (new Derived<Qt3DRender::QPickingSettings>())->get();
-    ps->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
-    ps->setParent(rootEntity);*/
     Qt3DRender::QLayer* l = (new Derived<Qt3DRender::QLayer>())->get();
     l->setRecursive(true);
     rootEntity->addComponent(l);
@@ -116,7 +116,7 @@ void mainCore::frameUpdate(float dt)
     {
         /*
          *
-         * v = A * (t/T - 1)^2;
+         * v = A * (t/T - 1)^2;     // ease-out for speed as quadratic function
          * S[v]dt = distance;
          * S[v]dt = S[A * (t/T - 1)^2]dt = [A * (T/3)*(t/T - 1)^3]0..T = 0 - A * (T/3) * (-1) = A * T/3 = distance;
          * A = (distance * 3) / T;
@@ -144,7 +144,7 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     qDebug() << "triggered";
     if(hits.size() > 0)
     {
-        qDebug() << "hit at y = " << hits[0].worldIntersection() << " (y should be 0), local: ";
+        qDebug() << "hit at y = " << hits[0].worldIntersection() << " (y should be 0), local: " << hits[0].localIntersection();
         QVector3D posHit = hits[0].worldIntersection();
         posHit.setY(.0f);
         cameraStartPosition = camera->position();
