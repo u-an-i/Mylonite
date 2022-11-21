@@ -31,14 +31,18 @@ private:
     MainWindow* mainWindow = nullptr;
     Qt3DWidget* view;
     int viewHeight;
+    Qt3DRender::QRenderSurfaceSelector* rss;
+    Qt3DRender::QClearBuffers* cb;
+    Qt3DRender::QViewport* vp;
+    Qt3DRender::QCameraSelector* cs;
+    Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
-    Qt3DRender::QLayerFilter* layerFilter;
     const float smallestQuadSize = .01f;                // 0.1f lets raycast not hit correctly from the cameraFarRestPosition
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
     const float maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
-    const QVector3D cameraFarRestPosition = QVector3D(.0f, 2.0f * maxQuadSize, .0f);
+    const QVector3D cameraFarRestPosition = QVector3D(.0f, 3.0f * maxQuadSize, .0f);
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     int zoomCurrentLevel = 19;
@@ -54,7 +58,7 @@ private:
 
     Qt3DCore::QEntity* createScene();
 
-    Qt3DRender::QLayer* layer[20];
+    Qt3DRender::QLayer* layer[19 + 1];                  // 19 is zoomLevelMax
     QHash<QString, Qt3DCore::QEntity*> cacheQuad;       // later: image (disk) cache
 };
 
