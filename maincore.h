@@ -3,6 +3,7 @@
 
 #include "mainwindow.h"
 #include "include/qt3dwidget.h"
+#include "imagetilerequest.h"
 
 #include <QObject>
 #include <Qt3DExtras>
@@ -49,8 +50,8 @@ private:
     bool zoom = false;
     const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that distance's reduction per zoom action
     const float zoomDuration = 1.25f;                   // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
-    const float zoomBackDistance = cameraFarRestPosition.y() / 8.0f;                // fixed distance to zoom back
-    const float zoomBackDistanceSmall = zoomBackDistance / 3.0f;                    // fixed distance to zoom back when close map
+    const float zoomBackDistance = cameraFarRestPosition.y() / 15.0f;                // fixed distance to zoom back
+    const float zoomBackDistanceSmall = zoomBackDistance / 20.0f;                    // fixed distance to zoom back when close map
     float easingCoefficient;
     float appliedZoomDuration;
     QElapsedTimer* t;
@@ -59,7 +60,9 @@ private:
     Qt3DCore::QEntity* createScene();
 
     Qt3DRender::QLayer* layer[19 + 1];                  // 19 is zoomLevelMax
-    QHash<QString, Qt3DCore::QEntity*> cacheQuad;       // later: image (disk) cache
+    QHash<QString, Qt3DCore::QEntity*> cacheQuad;
+
+    ImageTileRequest imageTileRequest;
 };
 
 #endif // MAINCORE_H
