@@ -62,24 +62,25 @@ void ImageTileRequest::replyFinished(QNetworkReply* reply)
         if(sf.open(QIODevice::WriteOnly))
         {
             sf.write(data);
-            sf.commit();qDebug() << "a";
+            sf.commit();
             if(cacheQuad != nullptr)
             {
-                Qt3DRender::QMaterial* m = (new Derived<Qt3DExtras::QTextureMaterial>())->get();qDebug() << "b";
-                Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();qDebug() << "c";
-                ti->setSource(QUrl("file:cache/" + key + ".jpg"));qDebug() << "d";
-                Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();qDebug() << "e";
-                t->addTextureImage(ti);qDebug() << "f";
-                ((Qt3DExtras::QTextureMaterial*)m)->setTexture(t);qDebug() << "g";
-                cacheQuad->value(key)->addComponent(m);qDebug() << "h";
+                Qt3DRender::QMaterial* m = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
+                Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
+                ti->setSource(QUrl("file:cache/" + key + ".jpg"));
+                Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();
+                t->setMagnificationFilter(Qt3DRender::QAbstractTexture::Linear);
+                t->setMinificationFilter(Qt3DRender::QAbstractTexture::Linear);
+                t->addTextureImage(ti);
+                ((Qt3DExtras::QTextureMaterial*)m)->setTexture(t);
+                cacheQuad->value(key)->addComponent(m);
             }
         }
     }
     else
     {
         queue.enqueue(key);     // consider later auto dequeuing
-    }qDebug() << "j";
-    //delete (requestObject*)(reply->request().originatingObject());
+    }
     reply->deleteLater();
 }
 

@@ -15,6 +15,8 @@ mainCore::mainCore()
 
     view = (new Derived<Qt3DWidget>())->get();
     viewHeight = view->height();
+    extensionX = ceil(2.0f * view->width() / viewHeight);
+    extensionX = extensionX < 0 ? 0 : extensionX;
     connect(view, &Qt3DWidget::resized, this, &mainCore::resized);
 
     view->renderSettings()->pickingSettings()->setPickMethod(Qt3DRender::QPickingSettings::TrianglePicking);
@@ -25,12 +27,10 @@ mainCore::mainCore()
 
     // Camera
     camera = view->camera();
-    camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
+    camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, .01f, cameraFarRestPosition.y() + 1.0f);        // nearPlane .0f lets QScreenRayCast hit something at center of screen and not one of the created mesh
     camera->setPosition(cameraFarRestPosition);
     camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, 0.0f, 0.0f));
-    camera->setNearPlane(.01f);         // .0f lets QScreenRayCast hit something at center of screen and not one of the created mesh
-    camera->setFarPlane(cameraFarRestPosition.y() + 1.0f);
 
     for(int i=0; i<20; ++i)
     {
@@ -133,6 +133,8 @@ void mainCore::setAPIKey()
 void mainCore::resized()
 {
     viewHeight = view->height();
+    extensionX = ceil(2.0f * view->width() / viewHeight);
+    extensionX = extensionX < 0 ? 0 : extensionX;
 }
 
 
@@ -158,40 +160,45 @@ void mainCore::frameUpdate(float dt)
         }
         float base = (t/appliedZoomDuration - 1.0f);
         QVector3D posNew = cameraStartPosition + easingCoefficient * appliedZoomDuration * (base * base * base + 1.0f) / 3.0f * cameraDirHit;
+        if(posNew.y() <= 2.0f * smallestQuadSize) {     // keep correspondingZoomLevel >= 0; also posNew.y() (with current values) is > camera->nearPlane() + (zoomLevelMax + 1) * (planey y stacking gap (0.001f))
+            posNew.setY(2.0f * smallestQuadSize);
+            if(zoom) {
+                zoom = false;
+                delete this->t;
+            }
+        }
         camera->setPosition(posNew);
         int correspondingZoomLevel = log2f(posNew.y() / (2.0f * smallestQuadSize));
         posNew.setY(.0f);
         camera->setViewCenter(posNew);
         if(correspondingZoomLevel != zoomCurrentLevel)
-        {
+        {qDebug() << "c p: " << camera->position().y();
             qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
             //src->removeLayer(layer[zoomCurrentLevel]);
             //src->addLayer(layer[correspondingZoomLevel]);
             lf->addLayer(layer[correspondingZoomLevel]);
-            int zcl = zoomCurrentLevel;
-            zoomCurrentLevel = correspondingZoomLevel;
-            if(correspondingZoomLevel < zcl)
+            if(correspondingZoomLevel < zoomCurrentLevel)
             {
-                int sizeMax = pow(2, zoomLevelMax - zoomCurrentLevel);
+                int sizeMax = pow(2, zoomLevelMax - correspondingZoomLevel);
                 float quadSize = maxQuadSize / sizeMax;
                 int indexRow = (maxQuadSize/2 - (int)posHit.z()) / quadSize;
                 int indexCol = (maxQuadSize/2 + (int)posHit.x()) / quadSize;
-                int indexStartRow = indexRow > 1 ? indexRow - 2 : 0;
-                int indexEndRow = indexRow < sizeMax - 2 ? indexRow + 3 : sizeMax;
-                int indexStartCol = indexCol > 1 ? indexCol - 2 : 0;
-                int indexEndCol = indexCol < sizeMax - 2 ? indexCol + 3 : sizeMax;
+                int indexStartRow = indexRow > extensionY - 1 ? indexRow - extensionY : 0;
+                int indexEndRow = indexRow < sizeMax - extensionY ? indexRow + extensionY + 1 : sizeMax;
+                int indexStartCol = indexCol > extensionX - 1 ? indexCol - extensionX : 0;
+                int indexEndCol = indexCol < sizeMax - extensionX ? indexCol + extensionX + 1 : sizeMax;
                 for(int i = indexStartRow; i < indexEndRow; ++i)
                 {
                     for(int j = indexStartCol; j < indexEndCol; ++j)
                     {
-                        QString key = QString::number(zoomLevelMax - zoomCurrentLevel) + "-" + QString::number(j) + "-" + QString::number(i);
+                        QString key = QString::number(zoomLevelMax - correspondingZoomLevel) + "-" + QString::number(j) + "-" + QString::number(i);
                         Qt3DCore::QEntity* quadEntity = cacheQuad[key];
                         if(quadEntity == nullptr) {
                             quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
                             cacheQuad[key] = quadEntity;
 
                             quadEntity->setParent(scene);
-                            quadEntity->addComponent(layer[zoomCurrentLevel]);
+                            quadEntity->addComponent(layer[correspondingZoomLevel]);
 
                             Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
                             qm->setMeshResolution(QSize(2, 2));
@@ -201,9 +208,9 @@ void mainCore::frameUpdate(float dt)
                             Qt3DCore::QTransform* qt = (new Derived<Qt3DCore::QTransform>())->get();
                             qt->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
                             qt->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
-                            qt->setTranslation(QVector3D(-maxQuadSize/2 + quadSize * (.5f + j), .0f, maxQuadSize/2 - quadSize * (.5f + i)));
+                            qt->setTranslation(QVector3D(-maxQuadSize/2 + quadSize * (.5f + j), .001f * (zoomLevelMax - correspondingZoomLevel), maxQuadSize/2 - quadSize * (.5f + i)));
 
-                            ImageTileRequest::imageTile it = imageTileRequest.getImageTile(zoomLevelMax - zoomCurrentLevel, j, i);
+                            ImageTileRequest::imageTile it = imageTileRequest.getImageTile(zoomLevelMax - correspondingZoomLevel, j, i);
 
                             if(it.m != nullptr)
                             {
@@ -214,8 +221,20 @@ void mainCore::frameUpdate(float dt)
                         }
                     }
                 }
+                if(zoomLastLevel != -1) {
+                    lf->removeLayer(layer[zoomLastLevel]);
+                }
+                zoomLastLevel = zoomCurrentLevel;
             }
-            lf->removeLayer(layer[zcl]);
+            else
+            {
+                lf->removeLayer(layer[zoomCurrentLevel]);
+                if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
+                {
+                    lf->removeLayer(layer[zoomLastLevel]);
+                }
+            }
+            zoomCurrentLevel = correspondingZoomLevel;
         }
     }
 }
@@ -258,7 +277,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
     else
     {
         cameraStartPosition = camera->position();
-        QVector3D posNew = cameraStartPosition + (cameraFarRestPosition - cameraStartPosition).normalized() * (cameraStartPosition.y() < zoomBackDistance ? zoomBackDistanceSmall : zoomBackDistance);
+        QVector3D posNew = cameraStartPosition + (cameraFarRestPosition - cameraStartPosition).normalized() * cameraStartPosition.y() * 2.0f;
         posNew = posNew.y() >= cameraFarRestPosition.y() ? cameraFarRestPosition : posNew;
         cameraDirHit = (posNew - cameraStartPosition);
         float distance = cameraDirHit.length();

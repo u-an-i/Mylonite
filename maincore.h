@@ -38,7 +38,7 @@ private:
     Qt3DRender::QCameraSelector* cs;
     Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
-    const float smallestQuadSize = .01f;                // 0.1f lets raycast not hit correctly from the cameraFarRestPosition
+    const float smallestQuadSize = .054f;                // "anything" larger lets raycast not hit correctly from the cameraFarRestPosition
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
@@ -47,15 +47,16 @@ private:
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     int zoomCurrentLevel = 19;
+    int zoomLastLevel = -1;
     bool zoom = false;
     const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that distance's reduction per zoom action
     const float zoomDuration = 1.25f;                   // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
-    const float zoomBackDistance = cameraFarRestPosition.y() / 15.0f;                // fixed distance to zoom back
-    const float zoomBackDistanceSmall = zoomBackDistance / 20.0f;                    // fixed distance to zoom back when close map
     float easingCoefficient;
     float appliedZoomDuration;
     QElapsedTimer* t;
     QVector3D posHit;
+    int extensionX = 0;               // = (viewport width / (viewport height / 4)) / 2 = 2*w/h, ceiled, 4 = 3 to 4 of below
+    const int extensionY = 2;         // 3 to 4 tiles fit into a given height thus depending on where the targeted is, 2 additional tiles must be visible to the top or bottom to cover the whole height
 
     Qt3DCore::QEntity* createScene();
 
