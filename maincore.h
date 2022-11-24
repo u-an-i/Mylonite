@@ -32,6 +32,9 @@ private:
     MainWindow* mainWindow = nullptr;
     Qt3DWidget* view;
     int viewHeight;
+    int mouseX;
+    int mouseY;
+    bool init = true;
     Qt3DRender::QRenderSurfaceSelector* rss;
     Qt3DRender::QClearBuffers* cb;
     Qt3DRender::QViewport* vp;
@@ -56,11 +59,13 @@ private:
     float appliedZoomDuration;
     QElapsedTimer* t;
     QVector3D posHit;
-    int extensionX = 0;                                                 // = viewport width / (viewport height / extensionY) = extensionY*w/h, ceiled
-    const int extensionY = ceil(cameraFarRestPositionFactor);           // cameraFarRestPositionFactor tiles fit into a given height thus depending on where the targeted is, ceiled cameraFarRestPositionFactor additional tiles must be visible to the top or bottom to cover the whole height
-    const float layerYStackingGap = .075f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
+    int extraZoom = 2;                                  // zoom level to add to originally intended zoom at camera distance for fetching textures
+    int extensionX = 0;                                                 // number of tiles visible across width at zoom level entrance
+    const int extensionY = ceil(cameraFarRestPositionFactor) + 1;           // number of tiles visible across height at zoom level entrance, cameraFarRestPositionFactor tiles fit into a given height
+    const float layerYStackingGap = .015f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
 
     Qt3DCore::QEntity* createScene();
+    bool doTiles(int forZoomLevel);
 
     Qt3DRender::QLayer* layer[19 + 1];                  // 19 is zoomLevelMax
     QHash<QString, Qt3DCore::QEntity*> cacheQuad;

@@ -11,6 +11,8 @@ mainCore::mainCore()
 
     mainWindow->show();
 
+    connect(mainWindow->getPushButtonForAPIKey(), &QPushButton::clicked, this, &mainCore::setAPIKey);
+
     imageTileRequest.setCache(&cacheQuad);
 
     view = (new Derived<Qt3DWidget>())->get();
@@ -50,7 +52,6 @@ mainCore::mainCore()
 
     lf = (new Derived<Qt3DRender::QLayerFilter>())->get();
     lf->setParent(cs);
-    lf->addLayer(layer[zoomCurrentLevel]);
 
     view->setActiveFrameGraph(rss);
 
@@ -60,20 +61,18 @@ mainCore::mainCore()
     //src->addLayer(layer[zoomCurrentLevel]);
     connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
 
-    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
-    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
-
     Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setSourceDevice((new Derived<Qt3DInput::QMouseDevice>)->get());
     connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
 
+    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
+    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
+
     scene->addComponent(src);
-    scene->addComponent(fa);
     scene->addComponent(mh);
+    scene->addComponent(fa);
 
     view->setRootEntity(scene);
-
-    connect(mainWindow->getPushButtonForAPIKey(), &QPushButton::clicked, this, &mainCore::setAPIKey);
 }
 
 
@@ -95,8 +94,6 @@ Qt3DCore::QEntity* mainCore::createScene()
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
 
     Qt3DCore::QEntity* qe = (new Derived<Qt3DCore::QEntity>())->get();
-    cacheQuad.insert("0-0-0", qe);
-
     qe->setParent(rootEntity);
     qe->addComponent(layer[zoomCurrentLevel]);
 
@@ -110,12 +107,6 @@ Qt3DCore::QEntity* mainCore::createScene()
     qt->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
     qt->setTranslation(QVector3D(.0f, .0f, .0f));
 
-    ImageTileRequest::imageTile it = imageTileRequest.getImageTile(0, 0, 0);
-
-    if(it.m != nullptr)
-    {
-        qe->addComponent(it.m);
-    }
     qe->addComponent(qm);
     qe->addComponent(qt);
 
@@ -133,6 +124,68 @@ void mainCore::resized()
 {
     viewHeight = view->height();
     extensionX = ceil(extensionY * view->width() / viewHeight);
+}
+
+
+bool mainCore::doTiles(int forZoomLevel)
+{                                                                                      // generalise for start position
+    int appliedZoomLevel = zoomLevelMax - forZoomLevel + extraZoom;
+    if(appliedZoomLevel <= zoomLevelMax) {
+        int sizeMax = pow(2, appliedZoomLevel);
+        float quadSize = maxQuadSize / sizeMax;
+        int indexCol = (maxQuadSize/2 + posHit.x()) / quadSize;
+        int indexRow = (maxQuadSize/2 - posHit.z()) / quadSize;
+        int appliedExtensionX = extensionX * pow(2, extraZoom);
+        int appliedExtensionY = extensionY * pow(2, extraZoom);
+        int tileSizePerViewX = ceil(view->width() / appliedExtensionX);
+        int tileSizePerViewY = ceil(view->height() / appliedExtensionY);
+        int viewTileIndexX = mouseX / tileSizePerViewX;
+        int viewTileIndexY = mouseY / tileSizePerViewY;
+        int indexStartCol = indexCol - viewTileIndexX;
+        indexStartCol = indexStartCol > 0 ? indexStartCol : 0;
+        int indexStartRow = indexRow - viewTileIndexY;
+        indexStartRow = indexStartRow > 0 ? indexStartRow : 0;
+        int indexEndCol = indexCol + appliedExtensionX - viewTileIndexX + 1;
+        indexEndCol = indexEndCol < sizeMax ? indexEndCol : sizeMax;
+        int indexEndRow = indexRow + appliedExtensionY - viewTileIndexY + 1;
+        indexEndRow = indexEndRow < sizeMax ? indexEndRow : sizeMax;qDebug() << indexEndCol << " " << indexEndRow;
+        for(int i = indexStartRow; i < indexEndRow; ++i)
+        {
+            for(int j = indexStartCol; j < indexEndCol; ++j)
+            {
+                QString key = QString::number(appliedZoomLevel) + "-" + QString::number(j) + "-" + QString::number(i);
+                Qt3DCore::QEntity* quadEntity = cacheQuad[key];
+                if(quadEntity == nullptr) {
+                    quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
+                    cacheQuad[key] = quadEntity;
+
+                    quadEntity->setParent(scene);
+                    quadEntity->addComponent(layer[forZoomLevel]);
+
+                    Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
+                    qm->setMeshResolution(QSize(2, 2));
+                    qm->setWidth(quadSize * 1.005f);
+                    qm->setHeight(quadSize * 1.005f);
+
+                    Qt3DCore::QTransform* qt = (new Derived<Qt3DCore::QTransform>())->get();
+                    qt->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
+                    qt->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
+                    qt->setTranslation(QVector3D(-maxQuadSize/2 + quadSize * (.5f + j), layerYStackingGap * appliedZoomLevel, maxQuadSize/2 - quadSize * (.5f + i)));
+
+                    ImageTileRequest::imageTile it = imageTileRequest.getImageTile(appliedZoomLevel, j, i);
+
+                    if(it.m != nullptr)
+                    {
+                        quadEntity->addComponent(it.m);
+                    }
+                    quadEntity->addComponent(qm);
+                    quadEntity->addComponent(qt);
+                }
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 
@@ -174,71 +227,39 @@ void mainCore::frameUpdate(float dt)
             qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
             //src->removeLayer(layer[zoomCurrentLevel]);
             //src->addLayer(layer[correspondingZoomLevel]);
-            if(correspondingZoomLevel < zoomCurrentLevel)
+            if(doTiles(correspondingZoomLevel))
             {
-                int extraZoom = 2;                                                                                          // generalise for start position
-                int appliedZoomLevel = zoomLevelMax - correspondingZoomLevel + extraZoom;
                 lf->addLayer(layer[correspondingZoomLevel]);
-                int sizeMax = pow(2, appliedZoomLevel);
-                float quadSize = maxQuadSize / sizeMax;
-                int indexRow = (maxQuadSize/2 - (int)posHit.z()) / quadSize;
-                int indexCol = (maxQuadSize/2 + (int)posHit.x()) / quadSize;
-                int appliedExtensionY = extensionY * pow(2, extraZoom);
-                int appliedExtensionX = extensionX * pow(2, extraZoom);
-                int indexStartRow = indexRow > appliedExtensionY - 1 ? indexRow - appliedExtensionY : 0;                    // optimise based on mouse pointer position relative to viewport boundary
-                int indexEndRow = indexRow < sizeMax - appliedExtensionY ? indexRow + appliedExtensionY + 1 : sizeMax;
-                int indexStartCol = indexCol > appliedExtensionX - 1 ? indexCol - appliedExtensionX : 0;
-                int indexEndCol = indexCol < sizeMax - appliedExtensionX ? indexCol + appliedExtensionX + 1 : sizeMax;
-                for(int i = indexStartRow; i < indexEndRow; ++i)
+                if(correspondingZoomLevel < zoomCurrentLevel)
                 {
-                    for(int j = indexStartCol; j < indexEndCol; ++j)
+                    if(zoomLastLevel != -1) {
+                        lf->removeLayer(layer[zoomLastLevel]);
+                    }
+                    zoomLastLevel = zoomCurrentLevel;
+                }
+                else
+                {
+                    lf->removeLayer(layer[zoomCurrentLevel]);
+                    if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
                     {
-                        QString key = QString::number(appliedZoomLevel) + "-" + QString::number(j) + "-" + QString::number(i);
-                        Qt3DCore::QEntity* quadEntity = cacheQuad[key];
-                        if(quadEntity == nullptr) {
-                            quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
-                            cacheQuad[key] = quadEntity;
-
-                            quadEntity->setParent(scene);
-                            quadEntity->addComponent(layer[correspondingZoomLevel]);
-
-                            Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
-                            qm->setMeshResolution(QSize(2, 2));
-                            qm->setWidth(quadSize);
-                            qm->setHeight(quadSize);
-
-                            Qt3DCore::QTransform* qt = (new Derived<Qt3DCore::QTransform>())->get();
-                            qt->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
-                            qt->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
-                            qt->setTranslation(QVector3D(-maxQuadSize/2 + quadSize * (.5f + j), layerYStackingGap * appliedZoomLevel, maxQuadSize/2 - quadSize * (.5f + i)));
-
-                            ImageTileRequest::imageTile it = imageTileRequest.getImageTile(appliedZoomLevel, j, i);
-
-                            if(it.m != nullptr)
-                            {
-                                quadEntity->addComponent(it.m);
-                            }
-                            quadEntity->addComponent(qm);
-                            quadEntity->addComponent(qt);
-                        }
+                        lf->removeLayer(layer[zoomLastLevel]);
+                        zoomLastLevel = -1;
                     }
                 }
-                if(zoomLastLevel != -1) {
-                    lf->removeLayer(layer[zoomLastLevel]);
-                }
-                zoomLastLevel = zoomCurrentLevel;
+                zoomCurrentLevel = correspondingZoomLevel;
             }
-            else
-            {
-                lf->addLayer(layer[correspondingZoomLevel]);
-                lf->removeLayer(layer[zoomCurrentLevel]);
-                if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
-                {
-                    lf->removeLayer(layer[zoomLastLevel]);
-                    zoomLastLevel = -1;
-                }
-            }
-            zoomCurrentLevel = correspondingZoomLevel;
+        }
+    }
+    else
+    {
+        if(init)
+        {
+            init = false;
+            posHit = QVector3D(.0f, .0f, .0f);
+            mouseX = view->width() / 2;
+            mouseY = view->height() / 2;
+            doTiles(zoomCurrentLevel);
+            lf->addLayer(layer[zoomCurrentLevel]);
         }
     }
 }
@@ -276,7 +297,9 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
 {
     if(wheel->angleDelta().y() > 0)
     {
-        src->trigger(QPoint(wheel->x(), viewHeight - wheel->y()));
+        mouseX = wheel->x();
+        mouseY = viewHeight - wheel->y();
+        src->trigger(QPoint(mouseX, mouseY));
     }
     else
     {
