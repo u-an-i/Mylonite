@@ -38,12 +38,13 @@ private:
     Qt3DRender::QCameraSelector* cs;
     Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
-    const float smallestQuadSize = .054f;                // "anything" larger lets raycast not hit correctly from the cameraFarRestPosition
+    const float cameraFarRestPositionFactor = 1.5f;
+    const float smallestQuadSize = .054f * 3.0f / cameraFarRestPositionFactor;                // "anything" larger lets raycast not hit correctly from the cameraFarRestPosition
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
     const float maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
-    const QVector3D cameraFarRestPosition = QVector3D(.0f, 3.0f * maxQuadSize, .0f);
+    const QVector3D cameraFarRestPosition = QVector3D(.0f, cameraFarRestPositionFactor * maxQuadSize, .0f);
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     int zoomCurrentLevel = 19;
@@ -55,8 +56,9 @@ private:
     float appliedZoomDuration;
     QElapsedTimer* t;
     QVector3D posHit;
-    int extensionX = 0;               // = (viewport width / (viewport height / 4)) / 2 = 2*w/h, ceiled, 4 = 3 to 4 of below
-    const int extensionY = 2;         // 3 to 4 tiles fit into a given height thus depending on where the targeted is, 2 additional tiles must be visible to the top or bottom to cover the whole height
+    int extensionX = 0;                                                 // = viewport width / (viewport height / extensionY) = extensionY*w/h, ceiled
+    const int extensionY = ceil(cameraFarRestPositionFactor);           // cameraFarRestPositionFactor tiles fit into a given height thus depending on where the targeted is, ceiled cameraFarRestPositionFactor additional tiles must be visible to the top or bottom to cover the whole height
+    const float layerYStackingGap = .075f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
 
     Qt3DCore::QEntity* createScene();
 
