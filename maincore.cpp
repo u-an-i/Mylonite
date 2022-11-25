@@ -61,12 +61,14 @@ mainCore::mainCore()
     //src->addLayer(layer[zoomCurrentLevel]);
     connect(src, &Qt3DRender::QScreenRayCaster::hitsChanged, this, &mainCore::rayHit);
 
-    Qt3DInput::QMouseHandler* mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
+    mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setSourceDevice((new Derived<Qt3DInput::QMouseDevice>)->get());
     connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
+    connect(mh, &Qt3DInput::QMouseHandler::pressed, this, &mainCore::pressed);
+    connect(mh, &Qt3DInput::QMouseHandler::released, this, &mainCore::released);
 
-    Qt3DLogic::QFrameAction* fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
-    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::frameUpdate);
+    fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
+    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
 
     scene->addComponent(src);
     scene->addComponent(mh);
@@ -93,9 +95,8 @@ Qt3DCore::QEntity* mainCore::createScene()
 {
     Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
 
-    Qt3DCore::QEntity* qe = (new Derived<Qt3DCore::QEntity>())->get();
-    qe->setParent(rootEntity);
-    qe->addComponent(layer[zoomCurrentLevel]);
+    Qt3DCore::QEntity* rayCastTarget = (new Derived<Qt3DCore::QEntity>())->get();
+    rayCastTarget->setParent(rootEntity);
 
     Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
     qm->setMeshResolution(QSize(2, 2));
@@ -107,8 +108,8 @@ Qt3DCore::QEntity* mainCore::createScene()
     qt->setRotation(QQuaternion::fromAxisAndAngle(QVector3D(0.0f, 1.0f, 0.0f), 0.0f));
     qt->setTranslation(QVector3D(.0f, .0f, .0f));
 
-    qe->addComponent(qm);
-    qe->addComponent(qt);
+    rayCastTarget->addComponent(qm);
+    rayCastTarget->addComponent(qt);
 
     return rootEntity;
 }
@@ -189,77 +190,75 @@ bool mainCore::doTiles(int forZoomLevel)
 }
 
 
-void mainCore::frameUpdate(float dt)
+void mainCore::initUpdate(float dt)
 {
-    if(zoom)
+    posHit = QVector3D(.0f, .0f, .0f);
+    mouseX = view->width() / 2;
+    mouseY = view->height() / 2;
+    doTiles(zoomCurrentLevel);
+    lf->addLayer(layer[zoomCurrentLevel]);
+    disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
+}
+
+
+void mainCore::zoomUpdate(float dt)
+{
+    /*
+     *
+     * v = A * (t/T - 1)^2;     // ease-out for speed as quadratic function
+     * S[v]dt = distance;
+     * S[v]dt = S[A * (t/T - 1)^2]dt = [A * (T/3)*(t/T - 1)^3]0..T = 0 - A * (T/3) * (-1) = A * T/3 = distance;
+     * A = (distance * 3) / T;
+     * [A * (T/3)*(t/T - 1)^3]0..t = A * (T/3)*(t/T - 1)^3 + A * T/3
+     *
+     */
+    float t = this->t->elapsed() / 1000.0f;
+    if(t > appliedZoomDuration)
     {
-        /*
-         *
-         * v = A * (t/T - 1)^2;     // ease-out for speed as quadratic function
-         * S[v]dt = distance;
-         * S[v]dt = S[A * (t/T - 1)^2]dt = [A * (T/3)*(t/T - 1)^3]0..T = 0 - A * (T/3) * (-1) = A * T/3 = distance;
-         * A = (distance * 3) / T;
-         * [A * (T/3)*(t/T - 1)^3]0..t = A * (T/3)*(t/T - 1)^3 + A * T/3
-         *
-         */
-        float t = this->t->elapsed() / 1000.0f;
-        if(t > appliedZoomDuration)
-        {
-            t = appliedZoomDuration;
+        t = appliedZoomDuration;
+        delete this->t;
+        zooming = false;
+        disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
+    }
+    float base = (t/appliedZoomDuration - 1.0f);
+    QVector3D posNew = cameraStartPosition + easingCoefficient * appliedZoomDuration * (base * base * base + 1.0f) / 3.0f * cameraDirHit;
+    if(posNew.y() <= fmax(cameraFarRestPositionFactor * smallestQuadSize, .01f + (zoomLevelMax + 1) * layerYStackingGap)) {     // keep correspondingZoomLevel >= 0; .01f is camera->nearPlane()
+        posNew.setY(fmax(cameraFarRestPositionFactor * smallestQuadSize, .01f + (zoomLevelMax + 1) * layerYStackingGap));
+        if(zooming) {
+            zooming = false;
+            disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
             delete this->t;
-            zoom = false;
-        }
-        float base = (t/appliedZoomDuration - 1.0f);
-        QVector3D posNew = cameraStartPosition + easingCoefficient * appliedZoomDuration * (base * base * base + 1.0f) / 3.0f * cameraDirHit;
-        if(posNew.y() <= fmax(cameraFarRestPositionFactor * smallestQuadSize, .01f + (zoomLevelMax + 1) * layerYStackingGap)) {     // keep correspondingZoomLevel >= 0; .01f is camera->nearPlane()
-            posNew.setY(fmax(cameraFarRestPositionFactor * smallestQuadSize, .01f + (zoomLevelMax + 1) * layerYStackingGap));
-            if(zoom) {
-                zoom = false;
-                delete this->t;
-            }
-        }
-        camera->setPosition(posNew);
-        int correspondingZoomLevel = log2f(posNew.y() / (cameraFarRestPositionFactor * smallestQuadSize));
-        posNew.setY(.0f);
-        camera->setViewCenter(posNew);
-        if(correspondingZoomLevel != zoomCurrentLevel)
-        {qDebug() << "c p: " << camera->position().y();
-            qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
-            //src->removeLayer(layer[zoomCurrentLevel]);
-            //src->addLayer(layer[correspondingZoomLevel]);
-            if(doTiles(correspondingZoomLevel))
-            {
-                lf->addLayer(layer[correspondingZoomLevel]);
-                if(correspondingZoomLevel < zoomCurrentLevel)
-                {
-                    if(zoomLastLevel != -1) {
-                        lf->removeLayer(layer[zoomLastLevel]);
-                    }
-                    zoomLastLevel = zoomCurrentLevel;
-                }
-                else
-                {
-                    lf->removeLayer(layer[zoomCurrentLevel]);
-                    if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
-                    {
-                        lf->removeLayer(layer[zoomLastLevel]);
-                        zoomLastLevel = -1;
-                    }
-                }
-                zoomCurrentLevel = correspondingZoomLevel;
-            }
         }
     }
-    else
-    {
-        if(init)
+    camera->setPosition(posNew);
+    int correspondingZoomLevel = log2f(posNew.y() / (cameraFarRestPositionFactor * smallestQuadSize));
+    posNew.setY(.0f);
+    camera->setViewCenter(posNew);
+    if(correspondingZoomLevel != zoomCurrentLevel)
+    {qDebug() << "c p: " << camera->position().y();
+        qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
+        //src->removeLayer(layer[zoomCurrentLevel]);
+        //src->addLayer(layer[correspondingZoomLevel]);
+        if(doTiles(correspondingZoomLevel))
         {
-            init = false;
-            posHit = QVector3D(.0f, .0f, .0f);
-            mouseX = view->width() / 2;
-            mouseY = view->height() / 2;
-            doTiles(zoomCurrentLevel);
-            lf->addLayer(layer[zoomCurrentLevel]);
+            lf->addLayer(layer[correspondingZoomLevel]);
+            if(correspondingZoomLevel < zoomCurrentLevel)
+            {
+                if(zoomLastLevel != -1) {
+                    lf->removeLayer(layer[zoomLastLevel]);
+                }
+                zoomLastLevel = zoomCurrentLevel;
+            }
+            else
+            {
+                lf->removeLayer(layer[zoomCurrentLevel]);
+                if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
+                {
+                    lf->removeLayer(layer[zoomLastLevel]);
+                    zoomLastLevel = -1;
+                }
+            }
+            zoomCurrentLevel = correspondingZoomLevel;
         }
     }
 }
@@ -270,24 +269,52 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
     qDebug() << "triggered";
     if(hits.size() > 0)
     {
-        qDebug() << "hit at y = " << hits[0].worldIntersection();
-        posHit = hits[0].worldIntersection();
-        cameraStartPosition = camera->position();
-        cameraDirHit = posHit - cameraStartPosition;
-        float distance = cameraDirHit.length();
-        cameraDirHit /= distance;
-        if(zoom) {
-            appliedZoomDuration = t->elapsed() / 1000.0f;
-            easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
-            t->restart();
-        }
-        else
+        qDebug() << hits.size() << " hit(s) at " << hits[0].worldIntersection() << " (...)";
+        switch(rct)
         {
-            appliedZoomDuration = zoomDuration;
-            easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
-            t = new QElapsedTimer();
-            t->start();
-            zoom = true;
+            case raycasttype::dozoom:
+            {
+                posHit = hits[0].worldIntersection();
+                cameraStartPosition = camera->position();
+                cameraDirHit = posHit - cameraStartPosition;
+                float distance = cameraDirHit.length();
+                cameraDirHit /= distance;
+                if(zooming) {
+                    appliedZoomDuration = t->elapsed() / 1000.0f;
+                    easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
+                    t->restart();
+                }
+                else
+                {
+                    appliedZoomDuration = zoomDuration;
+                    easingCoefficient = zoomDistanceFactor * distance * 3.0f / appliedZoomDuration;
+                    t = new QElapsedTimer();
+                    t->start();
+                    zooming = true;
+                    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
+                }
+                break;
+            }
+            case raycasttype::dopan:
+            {
+                if(panning)
+                {
+                    posHit = hits[0].worldIntersection();
+                    QVector3D panDelta = posHit - panHit;
+                    panDelta.setY(.0f);
+                    camera->setPosition(camera->position() - panDelta);
+                    QVector3D cvc = camera->position();
+                    cvc.setY(.0f);
+                    camera->setViewCenter(cvc);
+                    doTiles(zoomCurrentLevel);
+                }
+                else
+                {
+                    panning = true;
+                    panHit = hits[0].worldIntersection();
+                }
+                break;
+            }
         }
     }
 }
@@ -299,6 +326,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
     {
         mouseX = wheel->x();
         mouseY = viewHeight - wheel->y();
+        rct = raycasttype::dozoom;
         src->trigger(QPoint(mouseX, mouseY));
     }
     else
@@ -310,7 +338,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
         float distance = cameraDirHit.length();
         if(distance > .0f) {
             cameraDirHit /= distance;
-            if(zoom) {
+            if(zooming) {
                 appliedZoomDuration = t->elapsed() / 1000.0f;
                 easingCoefficient = distance * 3.0f / appliedZoomDuration;
                 t->restart();
@@ -321,9 +349,33 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
                 easingCoefficient = distance * 3.0f / appliedZoomDuration;
                 t = new QElapsedTimer();
                 t->start();
-                zoom = true;
+                zooming = true;
+                connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
             }
         }
     }
     qDebug() << "mouse: " << wheel->x() << " " << wheel->y() << " ";
+}
+
+void mainCore::pressed(Qt3DInput::QMouseEvent* mouse)
+{
+    rct = raycasttype::dopan;
+    src->trigger(QPoint(mouse->x(), viewHeight - mouse->y()));
+    connect(mh, &Qt3DInput::QMouseHandler::positionChanged, this, &mainCore::moved);
+    qDebug() << "mouse pressed: " << mouse->x() << " " << mouse->y() << " ";
+}
+
+void mainCore::moved(Qt3DInput::QMouseEvent* mouse)
+{
+    rct = raycasttype::dopan;
+    mouseX = mouse->x();
+    mouseY = viewHeight - mouse->y();
+    src->trigger(QPoint(mouseX, mouseY));
+    qDebug() << "mouse moved: " << mouse->x() << " " << mouse->y() << " ";
+}
+
+void mainCore::released(Qt3DInput::QMouseEvent* mouse)
+{
+    panning = false;
+    disconnect(mh, &Qt3DInput::QMouseHandler::positionChanged, this, &mainCore::moved);
 }

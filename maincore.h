@@ -23,9 +23,14 @@ public:
 public slots:
     void setAPIKey();
     void resized();
-    void frameUpdate(float dt);
+    void initUpdate(float dt);
+    void zoomUpdate(float dt);
+    //void panUpdate(float dt);
     void rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits);
     void wheeled(Qt3DInput::QWheelEvent* wheel);
+    void pressed(Qt3DInput::QMouseEvent* mouse);
+    void moved(Qt3DInput::QMouseEvent* mouse);
+    void released(Qt3DInput::QMouseEvent* mouse);
 
 
 private:
@@ -42,7 +47,7 @@ private:
     Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
     const float cameraFarRestPositionFactor = 1.5f;
-    const float smallestQuadSize = .054f * 3.0f / cameraFarRestPositionFactor;                // "anything" larger lets raycast not hit correctly from the cameraFarRestPosition
+    const float smallestQuadSize = .0054f * 3.0f / cameraFarRestPositionFactor;                // .0054f prevents close zooms due to mesh size too small, do workaround, "anything" larger .054f lets raycast not hit correctly from the cameraFarRestPosition
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
@@ -52,7 +57,7 @@ private:
     QVector3D cameraDirHit;
     int zoomCurrentLevel = 19;
     int zoomLastLevel = -1;
-    bool zoom = false;
+    bool zooming = false;
     const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that distance's reduction per zoom action
     const float zoomDuration = 1.25f;                   // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
     float easingCoefficient;
@@ -63,6 +68,10 @@ private:
     int extensionX = 0;                                                 // number of tiles visible across width at zoom level entrance
     const int extensionY = ceil(cameraFarRestPositionFactor) + 1;           // number of tiles visible across height at zoom level entrance, cameraFarRestPositionFactor tiles fit into a given height
     const float layerYStackingGap = .015f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
+    Qt3DInput::QMouseHandler* mh;
+    Qt3DLogic::QFrameAction* fa;
+    bool panning = false;
+    QVector3D panHit;
 
     Qt3DCore::QEntity* createScene();
     bool doTiles(int forZoomLevel);
@@ -71,6 +80,12 @@ private:
     QHash<QString, Qt3DCore::QEntity*> cacheQuad;
 
     ImageTileRequest imageTileRequest;
+
+    enum raycasttype {
+        dozoom, dopan
+    };
+
+    raycasttype rct;
 };
 
 #endif // MAINCORE_H
