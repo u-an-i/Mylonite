@@ -47,7 +47,7 @@ private:
     Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
     const float cameraFarRestPositionFactor = 1.5f;
-    const float smallestQuadSize = .0054f * 3.0f / cameraFarRestPositionFactor;                // .0054f prevents close zooms due to mesh size too small, do workaround, "anything" larger .054f lets raycast not hit correctly from the cameraFarRestPosition
+    const float smallestQuadSize = .0054f * 3.0f / cameraFarRestPositionFactor;                // .0054f allows ray cast hits be higher resolution than .054f from far away which allows smooth panning (but prevents hits when near due to mesh size too small thus no close zoom (not for the 1 "always-layer" only)), "anything" larger .054f lets raycast not hit correctly at all from the cameraFarRestPosition
     Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
@@ -67,10 +67,11 @@ private:
     int extraZoom = 2;                                  // zoom level to add to originally intended zoom at camera distance for fetching textures
     int extensionX = 0;                                                 // number of tiles visible across width at zoom level entrance
     const int extensionY = ceil(cameraFarRestPositionFactor) + 1;           // number of tiles visible across height at zoom level entrance, cameraFarRestPositionFactor tiles fit into a given height
-    const float layerYStackingGap = .015f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
+    const float layerYStackingGap = .0015f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
     Qt3DInput::QMouseHandler* mh;
     Qt3DLogic::QFrameAction* fa;
     bool panning = false;
+    bool newPanning = false;
     QVector3D panHit;
 
     Qt3DCore::QEntity* createScene();

@@ -165,8 +165,8 @@ bool mainCore::doTiles(int forZoomLevel)
 
                     Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
                     qm->setMeshResolution(QSize(2, 2));
-                    qm->setWidth(quadSize * 1.005f);
-                    qm->setHeight(quadSize * 1.005f);
+                    qm->setWidth(quadSize * 1.005f);        // * 1.005f = prevent gaps between quads on close camera
+                    qm->setHeight(quadSize * 1.005f);       // * 1.005f = see above
 
                     Qt3DCore::QTransform* qt = (new Derived<Qt3DCore::QTransform>())->get();
                     qt->setScale3D(QVector3D(1.0f, 1.0f, 1.0f));
@@ -228,7 +228,7 @@ void mainCore::zoomUpdate(float dt)
             zooming = false;
             disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
             delete this->t;
-        }
+        }qDebug() << "here";
     }
     camera->setPosition(posNew);
     int correspondingZoomLevel = log2f(posNew.y() / (cameraFarRestPositionFactor * smallestQuadSize));
@@ -310,7 +310,7 @@ void mainCore::rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits)
                 }
                 else
                 {
-                    panning = true;
+                    panning = newPanning;
                     panHit = hits[0].worldIntersection();
                 }
                 break;
@@ -360,6 +360,7 @@ void mainCore::wheeled(Qt3DInput::QWheelEvent* wheel)
 void mainCore::pressed(Qt3DInput::QMouseEvent* mouse)
 {
     rct = raycasttype::dopan;
+    newPanning = true;
     src->trigger(QPoint(mouse->x(), viewHeight - mouse->y()));
     connect(mh, &Qt3DInput::QMouseHandler::positionChanged, this, &mainCore::moved);
     qDebug() << "mouse pressed: " << mouse->x() << " " << mouse->y() << " ";
@@ -377,5 +378,6 @@ void mainCore::moved(Qt3DInput::QMouseEvent* mouse)
 void mainCore::released(Qt3DInput::QMouseEvent* mouse)
 {
     panning = false;
+    newPanning = false;
     disconnect(mh, &Qt3DInput::QMouseHandler::positionChanged, this, &mainCore::moved);
 }
