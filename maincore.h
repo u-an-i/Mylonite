@@ -52,7 +52,9 @@ private:
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
     const float maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
-    const QVector3D cameraFarRestPosition = QVector3D(.0f, cameraFarRestPositionFactor * maxQuadSize, .0f);
+    const float cameraFarRestDistance = cameraFarRestPositionFactor * maxQuadSize;
+    const float mapPlaneY = -cameraFarRestDistance / 2.0f;
+    const QVector3D cameraFarRestPosition = QVector3D(.0f, cameraFarRestDistance / 2.0f, .0f);
     QVector3D cameraStartPosition;
     QVector3D cameraDirHit;
     int zoomCurrentLevel = 19;
@@ -75,6 +77,7 @@ private:
     QVector3D panHit;
 
     Qt3DCore::QEntity* createScene();
+    void zoomInit(float zoomDistanceFactor);
     bool doTiles(int forZoomLevel);
 
     Qt3DRender::QLayer* layer[19 + 1];                  // 19 is zoomLevelMax
