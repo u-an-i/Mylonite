@@ -25,8 +25,6 @@ public slots:
     void resized();
     void initUpdate(float dt);
     void zoomUpdate(float dt);
-    //void panUpdate(float dt);
-    void rayHit(const Qt3DRender::QAbstractRayCaster::Hits &hits);
     void wheeled(Qt3DInput::QWheelEvent* wheel);
     void pressed(Qt3DInput::QMouseEvent* mouse);
     void moved(Qt3DInput::QMouseEvent* mouse);
@@ -37,9 +35,9 @@ private:
     MainWindow* mainWindow = nullptr;
     Qt3DWidget* view;
     int viewHeight;
+    int viewWidth;
     int mouseX;
     int mouseY;
-    bool init = true;
     Qt3DRender::QRenderSurfaceSelector* rss;
     Qt3DRender::QClearBuffers* cb;
     Qt3DRender::QViewport* vp;
@@ -48,7 +46,6 @@ private:
     Qt3DCore::QEntity* scene = nullptr;
     const float cameraFarRestPositionFactor = 1.5f;
     const float smallestQuadSize = .0054f * 3.0f / cameraFarRestPositionFactor;                // .0054f allows ray cast hits be higher resolution than .054f from far away which allows smooth panning (but prevents hits when near due to mesh size too small thus no close zoom (not for the 1 "always-layer" only)), "anything" larger .054f lets raycast not hit correctly at all from the cameraFarRestPosition
-    Qt3DRender::QScreenRayCaster* src;
     Qt3DRender::QCamera* camera;
     const int zoomLevelMax = 19;
     const float maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
@@ -60,16 +57,16 @@ private:
     int zoomCurrentLevel = 19;
     int zoomLastLevel = -1;
     bool zooming = false;
-    const float zoomDistanceFactor = .5f;               // factor to distance from camera to map giving that distance's reduction per zoom action
-    const float zoomDuration = 1.25f;                   // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
+    const float zoomDistanceFactor = .5f;                   // factor to distance from camera to map giving that distance's reduction per zoom action
+    const float zoomDuration = 1.25f;                       // duration in seconds of zooming a reduction of above mentioned distance(1 for all)
     float easingCoefficient;
     float appliedZoomDuration;
     QElapsedTimer* t;
     QVector3D posHit;
-    int extraZoom = 2;                                  // zoom level to add to originally intended zoom at camera distance for fetching textures
-    int extensionX = 0;                                                 // number of tiles visible across width at zoom level entrance
+    int extraZoom = 2;                                      // zoom level to add to originally intended zoom at camera distance for fetching textures
+    int extensionX = 0;                                                     // number of tiles visible across width at zoom level entrance
     const int extensionY = ceil(cameraFarRestPositionFactor) + 1;           // number of tiles visible across height at zoom level entrance, cameraFarRestPositionFactor tiles fit into a given height
-    const float layerYStackingGap = .0015f;               // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
+    const float layerYStackingGap = .0015f;                 // below is z-fighting at a certain zoom level in fullscreen for cameraFarRestPositionFactor = 1.5f
     Qt3DInput::QMouseHandler* mh;
     Qt3DLogic::QFrameAction* fa;
     bool panning = false;
@@ -80,16 +77,19 @@ private:
     void zoomInit(float zoomDistanceFactor);
     bool doTiles(int forZoomLevel);
 
-    Qt3DRender::QLayer* layer[19 + 1];                  // 19 is zoomLevelMax
+    Qt3DRender::QLayer* layer[19 + 1];                      // 19 is zoomLevelMax
     QHash<QString, Qt3DCore::QEntity*> cacheQuad;
 
     ImageTileRequest imageTileRequest;
 
-    enum raycasttype {
-        dozoom, dopan
+    struct mapHitCoordinates
+    {
+        double x;
+        double y;
+        double d;
     };
 
-    raycasttype rct;
+    mainCore::mapHitCoordinates getMapHit();
 };
 
 #endif // MAINCORE_H
