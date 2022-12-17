@@ -68,6 +68,13 @@ mainCore::mainCore()
     scene->addComponent(fa);
 
     view->setRootEntity(scene);
+
+    /*camera->setPosition(QVector3D(.0f, camera->position().y(), 871491.0));
+    qDebug() << camera->position().z();
+    camera->setPosition(QVector3D(.0f, camera->position().y(), 871491));
+    qDebug() << camera->position().z();
+    camera->setPosition(QVector3D(.0f, camera->position().y(), 871491.0f));
+    qDebug() << camera->position().z();*/
 }
 
 
@@ -199,8 +206,8 @@ void mainCore::zoomUpdate(float dt)
         delete this->t;
     }
     double base = (t/appliedZoomDuration - 1.0);
-    QVector3D posNew = posCameraStart + easingCoefficient * (base * base * base + 1.0) / 3.0 * dirCameraHit;                              // don't multiply by appliedZoomDuration here, don't divide by that earlier
-    if(posNew.y() - mapPlaneY <= fmax(cameraFarRestPositionFactor * smallestQuadSize, .01 + (zoomLevelMax + 1) * layerYStackingGap)) {     // keep correspondingZoomLevel >= 0; .01f is camera->nearPlane()
+    QVector3D posNew = posCameraStart + easingCoefficient * (base * base * base + 1.0) / 3.0 * dirCameraHit;                                // don't multiply by appliedZoomDuration here, don't divide by that earlier
+    if(posNew.y() - mapPlaneY <= fmax(cameraFarRestPositionFactor * smallestQuadSize, .01 + (zoomLevelMax + 1) * layerYStackingGap)) {      // keep correspondingZoomLevel >= 0; .01f is camera->nearPlane()
         posNew.setY(mapPlaneY + fmax(cameraFarRestPositionFactor * smallestQuadSize, .01 + (zoomLevelMax + 1) * layerYStackingGap));
         if(newZooming) {
             newZooming = false;
@@ -213,7 +220,7 @@ void mainCore::zoomUpdate(float dt)
     posNew.setY(mapPlaneY);
     camera->setViewCenter(posNew);
     if(correspondingZoomLevel != zoomCurrentLevel)
-    {qDebug() << "cam pos: " << camera->position().y();
+    {qDebug() << "cam pos: " << camera->position().y() - mapPlaneY;
         qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
         if(doTiles(correspondingZoomLevel, correspondingZoomLevel > zoomCurrentLevel))
         {
@@ -343,10 +350,20 @@ void mainCore::moved(Qt3DInput::QMouseEvent* mouse)
     mouseY = viewHeight - mouse->y();
     mapHitCoordinates hit = getMapHit();
     posHit = QVector3D(hit.x, hit.d, hit.y);
+    qDebug() << "hit: y: " << hit.y;
     double panDeltaX = hit.x - panHit.x, panDeltaY = hit.y - panHit.y;
     posCamX -= panDeltaX;
+    qDebug() << "hit: cam y before: " << posCamZ << " " << camera->position().z();
     posCamZ -= panDeltaY;
+    qDebug() << "hit: delta y: " << panDeltaY;
     camera->setPosition(QVector3D(posCamX, camera->position().y(), posCamZ));
+    qDebug() << "hit: cam y after:  " << posCamZ << " " << camera->position().z();
+    /*camera->setPosition(QVector3D(posCamX, camera->position().y(), 871491.0));
+    qDebug() << camera->position().z();
+    camera->setPosition(QVector3D(posCamX, camera->position().y(), 871491));
+    qDebug() << camera->position().z();
+    camera->setPosition(QVector3D(posCamX, camera->position().y(), 871491.0f));
+    qDebug() << camera->position().z();*/
     QVector3D cvc = camera->position();
     cvc.setY(mapPlaneY);
     camera->setViewCenter(cvc);
