@@ -20,7 +20,7 @@
       <x>10</x>
       <y>10</y>
       <width>391</width>
-      <height>51</height>
+      <height>91</height>
      </rect>
     </property>
     <property name="frameShape">
@@ -29,23 +29,7 @@
     <property name="frameShadow">
      <enum>QFrame::Raised</enum>
     </property>
-    <widget class="QLineEdit" name="lineEdit_APIKey">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>10</y>
-       <width>321</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-     <property name="placeholderText">
-      <string>Your TomTom API key</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="pushButton_APIKey">
+    <widget class="QPushButton" name="pushButton_URL">
      <property name="geometry">
       <rect>
        <x>340</x>
@@ -58,15 +42,56 @@
       <string>Use</string>
      </property>
     </widget>
+    <widget class="QComboBox" name="comboBox_URL">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>321</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="toolTip">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A map identifying text is a url of a map service having parts of it replaced by placeholders and being extended by information.&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Use &lt;span style=&quot; font-weight:700;&quot;&gt;placeholder&lt;/span&gt;&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;{X}&lt;/span&gt; for x-tile,&lt;br/&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;{Y}&lt;/span&gt; for y-tile,&lt;br/&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;{Z}&lt;/span&gt; for zoom-level,&lt;br/&gt;optionally &lt;span style=&quot; font-weight:700;&quot;&gt;{T}&lt;/span&gt; for type&lt;/p&gt;&lt;p&gt;eg. http://mapservice.org/tiles/&lt;span style=&quot; font-weight:700;&quot;&gt;{T}&lt;/span&gt;/&lt;span style=&quot; font-weight:700;&quot;&gt;{X}&lt;/span&gt;/&lt;span style=&quot; font-weight:700;&quot;&gt;{Y}&lt;/span&gt;/&lt;span style=&quot; font-weight:700;&quot;&gt;{Z}&lt;/span&gt;.png&lt;br/&gt;&lt;/p&gt;&lt;p&gt;optionally specify &lt;span style=&quot; font-weight:700;&quot;&gt;available types&lt;/span&gt;&lt;/p&gt;&lt;p&gt;each of them &lt;span style=&quot; font-weight:700;&quot;&gt;comma-separated&lt;/span&gt; from another between &lt;span style=&quot; font-weight:700;&quot;&gt;brackets after&lt;/span&gt; a &lt;span style=&quot; font-weight:700;&quot;&gt;colon behind&lt;/span&gt; that &lt;span style=&quot; font-weight:700;&quot;&gt;url&lt;/span&gt;&lt;/p&gt;&lt;p&gt;eg. http://mapservice.org/tiles/{T}/{X}/{Y}/{Z}.png&lt;span style=&quot; font-weight:700;&quot;&gt;:[satellite,traffic]&lt;/span&gt;&lt;/p&gt;&lt;p&gt;be attentive to use no space and enter the types as the map service specifies them&lt;br/&gt;&lt;/p&gt;&lt;p&gt;add the &lt;span style=&quot; font-weight:700;&quot;&gt;range of zoom-levels&lt;/span&gt; supported by the service of this url from farest zoom to closest zoom at end as&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;+farest-closest&lt;/span&gt;&lt;/p&gt;&lt;p&gt;eg. http://mapservice.org/tiles/{T}/{X}/{Y}/{Z}.png:[satellite,traffic]&lt;span style=&quot; font-weight:700;&quot;&gt;+0-18&lt;/span&gt;&lt;/p&gt;&lt;p&gt;be attentive whether the service has the smaller value as the farest or closest zoom, if the smaller value is the closest zoom it is +farest-smallervalue&lt;br/&gt;&lt;/p&gt;&lt;p&gt;mapservice.org is fictional, replace it by a real one and its structure, often a key is necessary making the map identifying text look something like&lt;/p&gt;&lt;p&gt;http://somemapservice.net/nameornames/{T}/{X}/{Y}/{Z}.jpg?key=Ao9Z:[sat,traffic]+0-9&lt;/p&gt;&lt;p&gt;where Ao9Z would be the key.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="editable">
+      <bool>true</bool>
+     </property>
+     <property name="currentText">
+      <string>Enter or Select a map identifying text</string>
+     </property>
+     <property name="insertPolicy">
+      <enum>QComboBox::InsertAlphabetically</enum>
+     </property>
+     <property name="sizeAdjustPolicy">
+      <enum>QComboBox::AdjustToContentsOnFirstShow</enum>
+     </property>
+     <property name="placeholderText">
+      <string/>
+     </property>
+    </widget>
+    <widget class="QComboBox" name="comboBox_Types">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>50</y>
+       <width>121</width>
+       <height>31</height>
+      </rect>
+     </property>
+    </widget>
    </widget>
   </widget>
  </widget>
  <resources/>
  <connections>
   <connection>
-   <sender>lineEdit_APIKey</sender>
-   <signal>returnPressed()</signal>
-   <receiver>pushButton_APIKey</receiver>
+   <sender>comboBox_URL</sender>
+   <signal>activated(int)</signal>
+   <receiver>pushButton_URL</receiver>
    <slot>click()</slot>
    <hints>
     <hint type="sourcelabel">

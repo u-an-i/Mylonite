@@ -18,29 +18,23 @@ ImageTileRequest::~ImageTileRequest()
 }
 
 
-void ImageTileRequest::setKey(const QString& key) {
-    if(!key.trimmed().isEmpty())
+void ImageTileRequest::setURL(MapIdentifyingText* url) {
+    this->url = url;
+    while(!queue.isEmpty())
     {
-        baseUrlSuffixPrepared = baseUrlSuffix + key;
-        while(!queue.isEmpty())
-        {
-            QString key = queue.dequeue();
-            requestObject* ro = (new Derived<ImageTileRequest::requestObject>())->get();
-            ro->key = key;
-            QStringList parts = key.split('-');
-            QNetworkRequest nr = QNetworkRequest(baseUrl + parts[0] + "/" + parts[1] + "/" + parts[2] + baseUrlSuffixPrepared);
-            nr.setOriginatingObject(ro);
-            manager->get(nr);
-        }
-    }
-    else
-    {
-        baseUrlSuffixPrepared = "";
+        QString key = queue.dequeue();
+        requestObject* ro = (new Derived<ImageTileRequest::requestObject>())->get();
+        ro->key = key;
+        ro->url = url;
+        QStringList parts = key.split('-');
+        QNetworkRequest nr = QNetworkRequest(url->getURL(parts[1].toInt(), parts[2].toInt(), parts[0].toInt()));
+        nr.setOriginatingObject(ro);
+        manager->get(nr);
     }
 }
 
 
-void ImageTileRequest::setCache(QHash<QString, Qt3DCore::QEntity*>* toCache)
+void ImageTileRequest::setCache(QHash<QString, QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>*>* toCache)
 {
     cacheQuad = toCache;
 }
@@ -48,17 +42,20 @@ void ImageTileRequest::setCache(QHash<QString, Qt3DCore::QEntity*>* toCache)
 
 bool ImageTileRequest::isReady()
 {
-    return this->baseUrlSuffixPrepared.length() > 0;
+    return url->isValid();
 }
 
 
 void ImageTileRequest::replyFinished(QNetworkReply* reply)
 {
-    QString key = ((requestObject*)(reply->request().originatingObject()))->key;
+    requestObject* ro = (requestObject*)(reply->request().originatingObject());
+    QString key = ro->key;
+    MapIdentifyingText* url = ro->url;
     if(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) == 200)
     {
+        QString path = "cache/" + url->getCacheFolder() + "/" + key;
         QByteArray data = reply->readAll();
-        QSaveFile sf = QSaveFile("cache/" + key + ".jpg");
+        QSaveFile sf = QSaveFile(path);
         if(sf.open(QIODevice::WriteOnly))
         {
             sf.write(data);
@@ -67,13 +64,13 @@ void ImageTileRequest::replyFinished(QNetworkReply* reply)
             {
                 Qt3DRender::QMaterial* m = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
                 Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
-                ti->setSource(QUrl("file:cache/" + key + ".jpg"));
+                ti->setSource(QUrl("file:" + path));
                 Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();
                 t->setMagnificationFilter(Qt3DRender::QAbstractTexture::Linear);
                 t->setMinificationFilter(Qt3DRender::QAbstractTexture::Linear);
                 t->addTextureImage(ti);
                 ((Qt3DExtras::QTextureMaterial*)m)->setTexture(t);
-                cacheQuad->value(key)->addComponent(m);
+                cacheQuad->value(url->getHashKey())->value(ro->type)->value(key)->addComponent(m);
             }
         }
     }
@@ -88,11 +85,12 @@ ImageTileRequest::imageTile ImageTileRequest::getImageTile(int zoom, int x, int 
 {
     ImageTileRequest::imageTile returnValue;
     QString key = QString::number(zoom) + "-" + QString::number(x) + "-" + QString::number(y);
-    if(QFileInfo::exists("cache/" + key + ".jpg"))
+    QString path = "cache/" + url->getCacheFolder() + "/" + key;
+    if(QFileInfo::exists(path))
     {
         Qt3DRender::QMaterial* m = (new Derived<Qt3DExtras::QTextureMaterial>())->get();
         Qt3DRender::QTextureImage* ti = (new Derived<Qt3DRender::QTextureImage>())->get();
-        ti->setSource(QUrl("file:cache/" + key + ".jpg"));
+        ti->setSource(QUrl("file:" + path));
         Qt3DRender::QTexture2D* t = (new Derived<Qt3DRender::QTexture2D>())->get();
         t->addTextureImage(ti);
         ((Qt3DExtras::QTextureMaterial*)m)->setTexture(t);
@@ -103,12 +101,19 @@ ImageTileRequest::imageTile ImageTileRequest::getImageTile(int zoom, int x, int 
         if(isReady()) {
             requestObject* ro = (new Derived<ImageTileRequest::requestObject>())->get();
             ro->key = key;
-            QNetworkRequest nr = QNetworkRequest(baseUrl + QString::number(zoom) + "/" + QString::number(x) + "/" + QString::number(y) + baseUrlSuffixPrepared);
+            ro->url = url;
+            ro->type = url->getCurrentType();
+            QNetworkRequest nr = QNetworkRequest(url->getURL(x, y, zoom));
             nr.setOriginatingObject(ro);
             manager->get(nr);
         }
         else
         {
+            if(zoom != currentZoomQueue)
+            {
+                currentZoomQueue = zoom;
+                queue.empty();
+            }
             queue.enqueue(key);
         }
         returnValue.m = nullptr;

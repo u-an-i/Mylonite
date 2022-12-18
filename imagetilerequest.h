@@ -1,6 +1,7 @@
 #ifndef IMAGETILEREQUEST_H
 #define IMAGETILEREQUEST_H
 
+#include "mapidentifyingtext.h"
 #include <QObject>
 #include <QNetworkReply>
 #include <Qt3DRender>
@@ -28,10 +29,12 @@ public:
         {}
 
         QString key;
+        MapIdentifyingText* url;
+        QString type;
     };
 
-    void setKey(const QString& key);
-    void setCache(QHash<QString, Qt3DCore::QEntity*>* toCache);
+    void setURL(MapIdentifyingText* url);
+    void setCache(QHash<QString, QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>*>* toCache);
     ImageTileRequest::imageTile getImageTile(int zoom, int x, int y);
 
 
@@ -42,14 +45,13 @@ public slots:
 private:
     QNetworkAccessManager* manager;
 
-    const QString baseUrl = "https://api.tomtom.com/map/1/tile/sat/main/";
-    const QString baseUrlSuffix = ".jpg?key=";
-    QString baseUrlSuffixPrepared = "";
+    MapIdentifyingText* url;
 
     bool isReady();
     QQueue<QString> queue;
+    int currentZoomQueue = -1;
 
-    QHash<QString, Qt3DCore::QEntity*>* cacheQuad = nullptr;
+    QHash<QString, QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>*>* cacheQuad = nullptr;
 };
 
 #endif // IMAGETILEREQUEST_H

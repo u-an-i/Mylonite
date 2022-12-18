@@ -9,6 +9,7 @@
 #include <Qt3DExtras>
 #include <Qt3DCore>
 #include <QHash>
+#include <QMessageBox>
 
 
 class mainCore : public QObject
@@ -21,7 +22,8 @@ public:
 
 
 public slots:
-    void setAPIKey();
+    void setURL();
+    void changeType(int index);
     void resized();
     void initUpdate(float dt);
     void zoomUpdate(float dt);
@@ -32,6 +34,7 @@ public slots:
 
 
 private:
+    void createHolders(MapIdentifyingText* url);
     MainWindow* mainWindow = nullptr;
     Qt3DWidget* view;
     int viewHeight;
@@ -45,16 +48,17 @@ private:
     Qt3DRender::QLayerFilter* lf;
     Qt3DCore::QEntity* scene = nullptr;
     const double cameraFarRestPositionFactor = 1.5;
-    const double smallestQuadSize = 1000.0*.0054 * 3.0 / cameraFarRestPositionFactor;
+    const double smallestQuadSize = .0054 * 3.0 / cameraFarRestPositionFactor;
     Qt3DRender::QCamera* camera;
-    const int zoomLevelMax = 19;
-    const double maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
-    const double cameraFarRestDistance = cameraFarRestPositionFactor * maxQuadSize;
-    const double mapPlaneY = -cameraFarRestDistance / 2.0;
-    const QVector3D posCameraFarRest = QVector3D(.0f, cameraFarRestDistance / 2.0, .0);
+    int zoomLevelMax = 19;
+    double maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
+    double cameraFarRestDistance = cameraFarRestPositionFactor * maxQuadSize;
+    double mapPlaneY = -cameraFarRestDistance / 2.0;
+    QVector3D posCameraFarRest = QVector3D(.0f, cameraFarRestDistance / 2.0, .0);
+    bool firstSet = true;
     QVector3D posCameraStart;
     QVector3D dirCameraHit;
-    int zoomCurrentLevel = 19;
+    int zoomCurrentLevel = zoomLevelMax;
     int zoomLastLevel = -1;
     bool zooming = false;
     const double zoomDistanceFactor = .5;                       // factor to distance from camera to map giving that distance's reduction per zoom action
@@ -73,12 +77,16 @@ private:
     bool panning = false;
     bool newPanning = false;
 
-    Qt3DCore::QEntity* createScene();
     void zoomInit(double distance, float wheelDelta);
     bool doTiles(int forZoomLevel, bool zoomingOut);
 
-    Qt3DRender::QLayer* layer[19 + 1];                          // 19 is zoomLevelMax
-    QHash<QString, Qt3DCore::QEntity*> cacheQuad;
+    QHash<QString, QHash<QString, QList<Qt3DRender::QLayer*>*>*> layer;
+    QHash<QString, QList<Qt3DRender::QLayer*>*>* currentTypeLayer;
+    QList<Qt3DRender::QLayer*>* currentLayer = nullptr;
+    QHash<QString, int> lastTypes;
+    QHash<QString, QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>*> cacheQuad;
+    QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>* currentTypeCacheQuad;
+    QHash<QString, Qt3DCore::QEntity*>* currentCacheQuad;
 
     ImageTileRequest imageTileRequest;
 
@@ -93,6 +101,8 @@ private:
     double posCamX, posCamY, posCamZ;
 
     mainCore::mapHitCoordinates getMapHit();
+
+    QList<MapIdentifyingText*> urls;
 };
 
 #endif // MAINCORE_H

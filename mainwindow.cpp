@@ -19,13 +19,19 @@ QWidget* MainWindow::getCentralWidget()
 }
 
 
-QPushButton* MainWindow::getPushButtonForAPIKey()
+QPushButton* MainWindow::getPushButtonForURL()
 {
-    return ui->pushButton_APIKey;
+    return ui->pushButton_URL;
 }
 
 
-QLineEdit* MainWindow::getLineEditForAPIKey()
+QComboBox* MainWindow::getURL()
 {
-    return ui->lineEdit_APIKey;
+    return ui->comboBox_URL;
+}
+
+
+QComboBox* MainWindow::getType()
+{
+    return ui->comboBox_Types;
 }

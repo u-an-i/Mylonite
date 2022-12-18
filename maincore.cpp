@@ -11,7 +11,36 @@ mainCore::mainCore()
 
     mainWindow->show();
 
-    connect(mainWindow->getPushButtonForAPIKey(), &QPushButton::clicked, this, &mainCore::setAPIKey);
+    connect(mainWindow->getPushButtonForURL(), &QPushButton::clicked, this, &mainCore::setURL);
+    connect(mainWindow->getType(), &QComboBox::activated, this, &mainCore::changeType);
+
+    QComboBox* cbURL = mainWindow->getURL();
+    QFile file("urls.txt");
+    if (file.open(QIODeviceBase::ReadOnly | QIODeviceBase::Text))
+    {
+        QTextStream in(&file);
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            if(line.length() > 0)
+            {
+                MapIdentifyingText* url = new MapIdentifyingText();
+                int result = url->addText(line);
+                if(result == 0)
+                {
+                    cbURL->addItem(line, QVariant(urls.count()));
+                    urls.append(url);
+                    createHolders(url);
+                }
+            }
+        }
+        cbURL->model()->sort(0);
+        file.close();
+    }
+
+    if(!cbURL->currentData().isValid() || !urls[cbURL->currentData().toInt()]->hasTypes())
+    {
+        mainWindow->getType()->hide();
+    }
 
     imageTileRequest.setCache(&cacheQuad);
 
@@ -26,15 +55,10 @@ mainCore::mainCore()
     mainWindow->setCentralWidget(view);
 
     camera = view->camera();
-    camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, .01f, cameraFarRestDistance + 2.0f);        // nearPlane .0f lets QScreenRayCast hit something at center of screen and not one of the created mesh
+    camera->lens()->setPerspectiveProjection(45.0f, 16.0f/9.0f, .01f, cameraFarRestDistance + 2.0f);        // nearPlane .0f lets QScreenRayCast (when used) hit something at center of screen and not one of the created mesh
     camera->setPosition(posCameraFarRest);
     camera->setUpVector(QVector3D(.0f, .0f, -1.0f));
     camera->setViewCenter(QVector3D(0.0f, mapPlaneY, 0.0f));
-
-    for(int i=0; i<20; ++i)
-    {
-        layer[i] = (new Derived<Qt3DRender::QLayer>())->get();
-    }
 
     rss = (new Derived<Qt3DRender::QRenderSurfaceSelector>())->get();
     rss->setSurface(view);
@@ -53,28 +77,17 @@ mainCore::mainCore()
 
     view->setActiveFrameGraph(rss);
 
-    scene = createScene();
+    scene = new Qt3DCore::QEntity;
 
     mh = (new Derived<Qt3DInput::QMouseHandler>())->get();
     mh->setSourceDevice((new Derived<Qt3DInput::QMouseDevice>)->get());
-    connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
-    connect(mh, &Qt3DInput::QMouseHandler::pressed, this, &mainCore::pressed);
-    connect(mh, &Qt3DInput::QMouseHandler::released, this, &mainCore::released);
 
     fa = (new Derived<Qt3DLogic::QFrameAction>())->get();
-    connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
 
     scene->addComponent(mh);
     scene->addComponent(fa);
 
     view->setRootEntity(scene);
-
-    /*camera->setPosition(QVector3D(.0f, camera->position().y(), 871491.0));
-    qDebug() << camera->position().z();
-    camera->setPosition(QVector3D(.0f, camera->position().y(), 871491));
-    qDebug() << camera->position().z();
-    camera->setPosition(QVector3D(.0f, camera->position().y(), 871491.0f));
-    qDebug() << camera->position().z();*/
 }
 
 
@@ -91,17 +104,196 @@ mainCore::~mainCore()
 }
 
 
-Qt3DCore::QEntity* mainCore::createScene()
+void mainCore::changeType(int index)
 {
-    Qt3DCore::QEntity* rootEntity = new Qt3DCore::QEntity;
-
-    return rootEntity;
+    if(currentLayer != nullptr)
+    {
+        for(int i=0; i<currentLayer->count(); ++i)
+        {
+            lf->removeLayer(currentLayer->at(i));
+        }
+    }
+    QString type = mainWindow->getType()->currentText();
+    currentCacheQuad = currentTypeCacheQuad->value(type);
+    currentLayer = currentTypeLayer->value(type);
+    doTiles(zoomCurrentLevel, false);
+    lf->addLayer(currentLayer->value(zoomCurrentLevel));
 }
 
 
-void mainCore::setAPIKey()
+void mainCore::createHolders(MapIdentifyingText* url)
 {
-    imageTileRequest.setKey(mainWindow->getLineEditForAPIKey()->text());
+    QString urlHashKey = url->getHashKey();
+    layer[urlHashKey] = (new Derived<QHash<QString, QList<Qt3DRender::QLayer*>*>>())->get();
+    currentTypeLayer = layer[urlHashKey];
+    cacheQuad[urlHashKey] = (new Derived<QHash<QString, QHash<QString, Qt3DCore::QEntity*>*>>())->get();
+    currentTypeCacheQuad = cacheQuad[urlHashKey];
+    zoomLevelMax = abs(url->getZoomFarest() - url->getZoomClosest());
+    QComboBox* type = mainWindow->getType();
+    url->setSourceType(type);
+    if(url->hasTypes())
+    {
+        type->clear();
+        QStringList types = url->getTypes();
+        type->addItems(types);
+        for(int i=0; i<types.length(); ++i)
+        {
+            currentTypeLayer->insert(types[i], (new Derived<QList<Qt3DRender::QLayer*>>())->get());
+            currentLayer = currentTypeLayer->value(types[i]);
+            for(int j=0; j<=zoomLevelMax; ++j)
+            {
+                currentLayer->insert(j, (new Derived<Qt3DRender::QLayer>())->get());
+            }
+            currentTypeCacheQuad->insert(types[i], (new Derived<QHash<QString, Qt3DCore::QEntity*>>())->get());
+            currentCacheQuad = currentTypeCacheQuad->value(types[i]);
+        }
+        lastTypes[urlHashKey] = 0;
+        type->setCurrentIndex(0);
+        type->show();
+    }
+    else
+    {
+        currentTypeLayer->insert("d", (new Derived<QList<Qt3DRender::QLayer*>>())->get());
+        currentLayer = currentTypeLayer->value("d");
+        for(int j=0; j<=zoomLevelMax; ++j)
+        {
+            currentLayer->insert(j, (new Derived<Qt3DRender::QLayer>())->get());
+        }
+        currentTypeCacheQuad->insert("d", (new Derived<QHash<QString, Qt3DCore::QEntity*>>())->get());
+        currentCacheQuad = currentTypeCacheQuad->value("d");
+        type->hide();
+    }
+}
+
+
+void mainCore::setURL()
+{
+    disconnect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
+    disconnect(mh, &Qt3DInput::QMouseHandler::pressed, this, &mainCore::pressed);
+    disconnect(mh, &Qt3DInput::QMouseHandler::released, this, &mainCore::released);
+    disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::zoomUpdate);
+    zooming = false;
+    if(currentLayer != nullptr)
+    {
+        for(int i=0; i<currentLayer->count(); ++i)
+        {
+            lf->removeLayer(currentLayer->at(i));
+        }
+    }
+    QComboBox* cbURL = mainWindow->getURL();
+    QString text = cbURL->currentText();
+    QVariant data = cbURL->currentData();
+    if(data.isValid())
+    {
+        MapIdentifyingText* url = urls[data.toInt()];
+        QString urlHashKey = url->getHashKey();
+        currentTypeLayer = layer[urlHashKey];
+        currentTypeCacheQuad = cacheQuad[urlHashKey];
+        zoomLevelMax = abs(url->getZoomFarest() - url->getZoomClosest());
+        QComboBox* type = mainWindow->getType();
+        if(url->hasTypes())
+        {
+            type->clear();
+            QStringList types = url->getTypes();
+            type->addItems(types);
+            currentCacheQuad = currentTypeCacheQuad->value(types[lastTypes[urlHashKey]]);
+            currentLayer = currentTypeLayer->value(types[lastTypes[urlHashKey]]);
+            type->setCurrentIndex(lastTypes[urlHashKey]);
+            type->show();
+        }
+        else
+        {
+            currentCacheQuad = currentTypeCacheQuad->value("d");
+            currentLayer = currentTypeLayer->value("d");
+            type->hide();
+        }
+        imageTileRequest.setURL(url);
+        connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
+    }
+    else
+    {
+        MapIdentifyingText* url = new MapIdentifyingText();
+        int result = url->addText(text);
+        if(result == 0)
+        {
+            QFile file("urls.txt");
+            if (file.open(QIODeviceBase::Append | QIODeviceBase::Text))
+            {
+                QTextStream out(&file);
+                out << text + "\n";
+                out.flush();
+                file.close();
+            }
+            cbURL->setItemData(cbURL->currentIndex(), QVariant(urls.count()));
+            urls.append(url);
+            createHolders(url);
+            imageTileRequest.setURL(url);
+            connect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
+        }
+        else
+        {
+            delete url;
+            cbURL->removeItem(cbURL->currentIndex());
+            QComboBox* type = mainWindow->getType();
+            type->hide();
+            QString bailedAts[] = {
+                "no zoom range given ('+' missing)",
+                "not 1 farest and 1 closest zoom-level given or '-' not present",
+                "farest zoom-level no integer",
+                "closest zoom-level no integer",
+                "placeholders not present or too many of them",
+                "url could not be converted to a operating system folder for a cache,\nurl should contain at least 1 alphabetical character.",
+                "cache folder could not be created.\nPerhaps operating system permissions insufficient or out of space."
+                "every map type name should contain at least 1 alphabetical character (different from every other)\nand operating system permissions and space must be sufficient to create a cache folder for each."
+            };
+            if(result > 7)
+            {
+                result = 7;
+            }
+            else
+            {
+                --result;
+            }
+            QMessageBox::warning(mainWindow, "Info", "map identifying text not accepted, reason:\n\n" +  bailedAts[result]);
+        }
+    }
+}
+
+
+void mainCore::initUpdate(float dt)
+{
+    float zoomCurrent = log2f((camera->position().y() - mapPlaneY) / (cameraFarRestPositionFactor * smallestQuadSize));
+    double relativeX = camera->position().x() / (maxQuadSize/2.0);
+    double relativeZ = camera->position().z() / (maxQuadSize/2.0);
+    maxQuadSize = pow(2, zoomLevelMax) * smallestQuadSize;
+    cameraFarRestDistance = cameraFarRestPositionFactor * maxQuadSize;
+    mapPlaneY = -cameraFarRestDistance / 2.0;
+    posCameraFarRest = QVector3D(.0f, cameraFarRestDistance / 2.0, .0);
+    if(camera->farPlane() < cameraFarRestDistance + 2.0f)
+    {
+        camera->setFarPlane(cameraFarRestDistance + 2.0f);
+    }
+    if(firstSet || zoomCurrent >= zoomLevelMax)
+    {
+        firstSet = false;
+        zoomCurrent = zoomLevelMax;
+        relativeX = 0.0;
+        relativeZ = 0.0;
+        posHit = QVector3D(.0f, mapPlaneY, .0f);
+        mouseX = view->width() / 2;
+        mouseY = view->height() / 2;
+    }
+    QVector3D cp = QVector3D(relativeX * maxQuadSize/2.0, mapPlaneY + pow(2, zoomCurrent) * cameraFarRestPositionFactor * smallestQuadSize, relativeZ * maxQuadSize/2.0);
+    camera->setPosition(cp);
+    cp.setY(mapPlaneY);
+    camera->setViewCenter(cp);
+    zoomCurrentLevel = zoomCurrent;
+    doTiles(zoomCurrentLevel, false);
+    lf->addLayer(currentLayer->value(zoomCurrentLevel));
+    disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
+    connect(mh, &Qt3DInput::QMouseHandler::wheel, this, &mainCore::wheeled);
+    connect(mh, &Qt3DInput::QMouseHandler::pressed, this, &mainCore::pressed);
+    connect(mh, &Qt3DInput::QMouseHandler::released, this, &mainCore::released);
 }
 
 
@@ -133,19 +325,19 @@ bool mainCore::doTiles(int forZoomLevel, bool zoomingOut)
         int indexEndCol = indexCol + appliedExtensionX - viewTileIndexX + 1;
         indexEndCol = indexEndCol < sizeMax ? indexEndCol : sizeMax;
         int indexEndRow = indexRow + appliedExtensionY - viewTileIndexY + 1;
-        indexEndRow = indexEndRow < sizeMax ? indexEndRow : sizeMax;//qDebug() << indexEndCol << " " << indexEndRow;
+        indexEndRow = indexEndRow < sizeMax ? indexEndRow : sizeMax;
         for(int i = indexStartRow; i < indexEndRow; ++i)
         {
             for(int j = indexStartCol; j < indexEndCol; ++j)
             {
                 QString key = QString::number(appliedZoomLevel) + "-" + QString::number(j) + "-" + QString::number(i);
-                Qt3DCore::QEntity* quadEntity = cacheQuad[key];
+                Qt3DCore::QEntity* quadEntity = currentCacheQuad->value(key);
                 if(quadEntity == nullptr) {
                     quadEntity = (new Derived<Qt3DCore::QEntity>())->get();
-                    cacheQuad[key] = quadEntity;
+                    currentCacheQuad->insert(key, quadEntity);
 
                     quadEntity->setParent(scene);
-                    quadEntity->addComponent(layer[forZoomLevel]);
+                    quadEntity->addComponent(currentLayer->value(forZoomLevel));
 
                     Qt3DExtras::QPlaneMesh* qm = (new Derived<Qt3DExtras::QPlaneMesh>())->get();
                     qm->setMeshResolution(QSize(2, 2));
@@ -171,17 +363,6 @@ bool mainCore::doTiles(int forZoomLevel, bool zoomingOut)
         return true;
     }
     return false;
-}
-
-
-void mainCore::initUpdate(float dt)
-{
-    posHit = QVector3D(.0f, mapPlaneY, .0f);
-    mouseX = view->width() / 2;
-    mouseY = view->height() / 2;
-    doTiles(zoomCurrentLevel, false);
-    lf->addLayer(layer[zoomCurrentLevel]);
-    disconnect(fa, &Qt3DLogic::QFrameAction::triggered, this, &mainCore::initUpdate);
 }
 
 
@@ -224,20 +405,20 @@ void mainCore::zoomUpdate(float dt)
         qDebug() << "co: " << correspondingZoomLevel << ", cu: " << zoomCurrentLevel;
         if(doTiles(correspondingZoomLevel, correspondingZoomLevel > zoomCurrentLevel))
         {
-            lf->addLayer(layer[correspondingZoomLevel]);
+            lf->addLayer(currentLayer->value(correspondingZoomLevel));
             if(correspondingZoomLevel < zoomCurrentLevel)
             {
                 if(zoomLastLevel != -1) {
-                    lf->removeLayer(layer[zoomLastLevel]);
+                    lf->removeLayer(currentLayer->value(zoomLastLevel));
                 }
                 zoomLastLevel = zoomCurrentLevel;
             }
             else
             {
-                lf->removeLayer(layer[zoomCurrentLevel]);
+                lf->removeLayer(currentLayer->value(zoomCurrentLevel));
                 if(zoomLastLevel != -1 && zoomLastLevel != correspondingZoomLevel)
                 {
-                    lf->removeLayer(layer[zoomLastLevel]);
+                    lf->removeLayer(currentLayer->value(zoomLastLevel));
                     zoomLastLevel = -1;
                 }
             }

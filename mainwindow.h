@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 #include <QPushButton>
-#include <QLineEdit>
+#include <QComboBox>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,8 +18,9 @@ public:
     ~MainWindow();
 
     QWidget* getCentralWidget();
-    QPushButton* getPushButtonForAPIKey();
-    QLineEdit* getLineEditForAPIKey();
+    QPushButton* getPushButtonForURL();
+    QComboBox* getURL();
+    QComboBox* getType();
 
 private:
     Ui::MainWindow *ui;
